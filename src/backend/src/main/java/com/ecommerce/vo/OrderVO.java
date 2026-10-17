@@ -25,6 +25,10 @@ public class OrderVO implements Serializable {
     private BigDecimal totalAmount;
     private BigDecimal freightAmount;
     private BigDecimal payAmount;
+    /** 下单时的汇率快照（基础币种 CNY -> 订单币种） */
+    private BigDecimal exchangeRate;
+    /** 折算为基础币种 CNY 的金额，用于跨币种统计 */
+    private BigDecimal baseAmount;
     private Integer itemCount;
     private String consignee;
     private String country;
@@ -47,6 +51,8 @@ public class OrderVO implements Serializable {
         vo.setTotalAmount(order.getTotalAmount());
         vo.setFreightAmount(order.getFreightAmount());
         vo.setPayAmount(order.getPayAmount());
+        vo.setExchangeRate(order.getExchangeRate());
+        vo.setBaseAmount(order.getBaseAmount());
         vo.setConsignee(order.getConsignee());
         vo.setCountry(order.getCountry());
         vo.setCreatedAt(order.getCreatedAt());

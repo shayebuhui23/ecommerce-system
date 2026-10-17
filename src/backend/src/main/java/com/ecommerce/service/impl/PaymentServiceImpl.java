@@ -15,6 +15,7 @@ import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.PaymentMapper;
 import com.ecommerce.security.LoginUserUtil;
+import com.ecommerce.service.OperationLogService;
 import com.ecommerce.service.PaymentService;
 import com.ecommerce.vo.PaymentVO;
 import lombok.extern.slf4j.Slf4j;
@@ -47,10 +48,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentMapper paymentMapper;
     private final OrderMapper orderMapper;
+    private final OperationLogService operationLogService;
 
-    public PaymentServiceImpl(PaymentMapper paymentMapper, OrderMapper orderMapper) {
+    public PaymentServiceImpl(PaymentMapper paymentMapper,
+                              OrderMapper orderMapper,
+                              OperationLogService operationLogService) {
         this.paymentMapper = paymentMapper;
         this.orderMapper = orderMapper;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -92,6 +97,7 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setFailReason("模拟支付失败（演示分支）");
             paymentMapper.insert(payment);
             log.info("模拟支付失败：orderNo={}", order.getOrderNo());
+            operationLogService.record("PAYMENT", "模拟支付失败", order.getOrderNo());
             return PaymentVO.from(payment, order.getOrderNo());
         }
 
@@ -110,6 +116,8 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setPaidAt(LocalDateTime.now());
         paymentMapper.insert(payment);
         log.info("模拟支付成功：orderNo={}, amount={}", order.getOrderNo(), order.getPayAmount());
+        operationLogService.record("PAYMENT", "模拟支付成功",
+                order.getOrderNo() + " | " + order.getPayAmount() + " " + order.getCurrency());
         return PaymentVO.from(payment, order.getOrderNo());
     }
 

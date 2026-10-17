@@ -27,6 +27,8 @@ import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.ProductMapper;
 import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.security.LoginUserUtil;
+import com.ecommerce.service.ExchangeRateService;
+import com.ecommerce.service.OperationLogService;
 import com.ecommerce.service.OrderService;
 import com.ecommerce.vo.OrderDetailVO;
 import com.ecommerce.vo.OrderItemVO;
@@ -74,6 +76,8 @@ public class OrderServiceImpl implements OrderService {
     private final AddressMapper addressMapper;
     private final InventoryLogMapper inventoryLogMapper;
     private final ShipmentMapper shipmentMapper;
+    private final ExchangeRateService exchangeRateService;
+    private final OperationLogService operationLogService;
 
     public OrderServiceImpl(OrderMapper orderMapper,
                             OrderItemMapper orderItemMapper,
@@ -82,7 +86,9 @@ public class OrderServiceImpl implements OrderService {
                             ProductMapper productMapper,
                             AddressMapper addressMapper,
                             InventoryLogMapper inventoryLogMapper,
-                            ShipmentMapper shipmentMapper) {
+                            ShipmentMapper shipmentMapper,
+                            ExchangeRateService exchangeRateService,
+                            OperationLogService operationLogService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.cartMapper = cartMapper;
@@ -91,6 +97,8 @@ public class OrderServiceImpl implements OrderService {
         this.addressMapper = addressMapper;
         this.inventoryLogMapper = inventoryLogMapper;
         this.shipmentMapper = shipmentMapper;
+        this.exchangeRateService = exchangeRateService;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -121,21 +129,28 @@ public class OrderServiceImpl implements OrderService {
             orderItems.add(buildOrderItem(product, cartItem.getQuantity(), subtotal));
         }
 
-        BigDecimal freightAmount = totalAmount.compareTo(FREE_FREIGHT_THRESHOLD) >= 0
+        // 运费与免邮门槛按基础币种 CNY 判断
+        BigDecimal baseFreight = totalAmount.compareTo(FREE_FREIGHT_THRESHOLD) >= 0
                 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
                 : DEFAULT_FREIGHT;
-        BigDecimal payAmount = totalAmount.add(freightAmount);
+        String currency = StringUtils.hasText(dto.getCurrency()) ? dto.getCurrency() : "CNY";
+        BigDecimal exchangeRate = exchangeRateService.requireRate("CNY", currency);
+
+        BigDecimal orderTotal = totalAmount.multiply(exchangeRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal orderFreight = baseFreight.multiply(exchangeRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal payAmount = orderTotal.add(orderFreight);
+        BigDecimal baseAmount = totalAmount.add(baseFreight);
 
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
-        order.setCurrency("CNY");
-        // 首版仅支持基础币种，汇率为 1；阶段五接入管理员维护的汇率
-        order.setExchangeRate(BigDecimal.ONE);
-        order.setTotalAmount(totalAmount);
-        order.setFreightAmount(freightAmount);
+        order.setCurrency(currency);
+        // 保存下单时汇率快照，后续调整汇率不影响本订单
+        order.setExchangeRate(exchangeRate);
+        order.setTotalAmount(orderTotal);
+        order.setFreightAmount(orderFreight);
         order.setPayAmount(payAmount);
-        order.setBaseAmount(payAmount);
+        order.setBaseAmount(baseAmount);
         order.setConsignee(address.getConsignee());
         order.setCountry(address.getCountry());
         order.setProvinceState(address.getProvinceState());
@@ -163,7 +178,9 @@ public class OrderServiceImpl implements OrderService {
 
         // 下单成功后移除已结算的购物车项，重复提交会因购物车为空而失败
         cartItemMapper.deleteBatchIds(cartItems.stream().map(CartItem::getId).collect(Collectors.toList()));
-        log.info("订单创建成功：orderNo={}, userId={}, payAmount={}", order.getOrderNo(), userId, payAmount);
+        log.info("订单创建成功：orderNo={}, userId={}, payAmount={} {}", order.getOrderNo(), userId, payAmount, currency);
+        operationLogService.record("ORDER", "创建订单",
+                order.getOrderNo() + " | " + payAmount + " " + currency);
         return detail(order.getId());
     }
 

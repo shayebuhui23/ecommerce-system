@@ -3,6 +3,7 @@ package com.ecommerce.dto;
 import lombok.Data;
 
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -27,6 +28,10 @@ public class OrderCreateDTO implements Serializable {
 
     @Size(max = 32, message = "运输方式长度不能超过 32 个字符")
     private String shippingMethod = "EXPRESS";
+
+    /** 订单币种，默认基础币种 CNY，其他币种按管理员维护的模拟汇率换算 */
+    @Pattern(regexp = "^[A-Z]{3}$", message = "币种需为 3 位大写字母，如 CNY、USD")
+    private String currency = "CNY";
 
     @Size(max = 500, message = "订单备注不能超过 500 个字符")
     private String remark;

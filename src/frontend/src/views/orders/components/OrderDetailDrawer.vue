@@ -14,7 +14,10 @@
 
         <div class="mt-5 rounded-2xl bg-slate-50 p-4">
           <p class="text-[11px] text-slate-400">收货信息</p>
-          <p class="mt-1 text-sm text-slate-800">{{ order.consignee }} <span class="ml-2 font-mono text-[11px] text-slate-400">{{ order.phone }}</span></p>
+          <p class="mt-1 text-sm text-slate-800">
+            {{ order.consignee }}
+            <span class="ml-2 font-mono text-[11px] text-slate-400">{{ order.phone }}</span>
+          </p>
           <p class="mt-1 text-xs leading-5 text-slate-500">{{ fullAddress }}</p>
         </div>
 
@@ -36,9 +39,20 @@
               <div class="text-right">
                 <p class="font-mono text-xs text-slate-700">{{ money(item.unitPrice) }}</p>
                 <p class="text-[10px] text-slate-400">× {{ item.quantity }}</p>
+                <button
+                  v-if="canReview"
+                  type="button"
+                  class="mt-1 text-[10px] text-brand-600 hover:underline"
+                  @click="openReview(item)"
+                >
+                  评价
+                </button>
               </div>
             </div>
           </div>
+          <p v-if="order.currency !== 'CNY'" class="mt-2 text-[10px] text-slate-400">
+            商品单价以基础币种 CNY 记录，订单金额已按下单时汇率 {{ order.exchangeRate }} 折算
+          </p>
         </div>
 
         <div class="mt-5 space-y-2 rounded-2xl border border-slate-100 p-4 text-xs">
@@ -56,7 +70,17 @@
           </div>
         </div>
 
-        <div v-if="order.shipment" class="mt-5 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
+        <div v-if="afterSale" class="mt-4 rounded-2xl border px-4 py-3" :class="afterSaleClass">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] text-slate-400">售后申请 · {{ afterSale.afterSaleNo }}</p>
+            <span class="text-[11px]">{{ afterSale.statusText }}</span>
+          </div>
+          <p class="mt-1 text-xs">原因：{{ afterSale.reason }}</p>
+          <p v-if="afterSale.auditRemark" class="mt-1 text-[11px] opacity-80">商家意见：{{ afterSale.auditRemark }}</p>
+          <p v-if="afterSale.refundedAt" class="mt-1 text-[11px] opacity-80">退款时间：{{ afterSale.refundedAt }}</p>
+        </div>
+
+        <div v-if="order.shipment" class="mt-4 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
           <div class="flex items-center justify-between">
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">物流信息</p>
             <span class="rounded-full border border-brand-200 bg-white px-2.5 py-0.5 text-[10px] text-brand-600">
@@ -83,7 +107,7 @@
           <p v-if="order.cancelledAt">取消时间：{{ order.cancelledAt }}</p>
         </div>
 
-        <div class="mt-5 flex gap-2">
+        <div class="mt-5 flex flex-wrap gap-2">
           <button
             v-if="showPay"
             type="button"
@@ -101,6 +125,14 @@
             确认收货
           </button>
           <button
+            v-if="canApplyRefund"
+            type="button"
+            class="flex-1 rounded-xl border border-amber-200 py-2.5 text-sm text-amber-600 transition-colors hover:bg-amber-50"
+            @click="refundVisible = true"
+          >
+            申请退款
+          </button>
+          <button
             v-if="showCancel"
             type="button"
             class="flex-1 rounded-xl border border-rose-200 py-2.5 text-sm text-rose-500 transition-colors hover:bg-rose-50"
@@ -111,6 +143,8 @@
         </div>
 
         <PayDialog v-model="payVisible" :order="order" @paid="handlePaid" />
+        <AfterSaleDialog v-model="refundVisible" :order="order" @applied="handleApplied" />
+        <ReviewDialog v-model="reviewVisible" :item="reviewItem" @reviewed="handleReviewed" />
       </template>
 
       <div v-else-if="!loading" class="py-20 text-center text-sm text-slate-400">订单信息加载失败</div>
@@ -123,7 +157,10 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cancelOrder, fetchOrderDetail } from '../../../api/order'
 import { receiveOrder } from '../../../api/shipment'
+import { fetchAfterSaleByOrder } from '../../../api/afterSale'
 import PayDialog from './PayDialog.vue'
+import AfterSaleDialog from './AfterSaleDialog.vue'
+import ReviewDialog from './ReviewDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -138,6 +175,11 @@ const visible = computed({
 
 const loading = ref(false)
 const order = ref(null)
+const afterSale = ref(null)
+const payVisible = ref(false)
+const refundVisible = ref(false)
+const reviewVisible = ref(false)
+const reviewItem = ref(null)
 
 const fullAddress = computed(() => {
   if (!order.value) return ''
@@ -150,12 +192,27 @@ const showCancel = computed(() => order.value?.status === 'PENDING_PAYMENT')
 const showPay = computed(() => order.value?.status === 'PENDING_PAYMENT')
 const showReceive = computed(() => order.value?.status === 'SHIPPED')
 
+const canApplyRefund = computed(() => {
+  const status = order.value?.status
+  const refundable = ['PENDING_SHIPMENT', 'SHIPPED', 'COMPLETED'].includes(status)
+  return refundable && !afterSale.value
+})
+
+const canReview = computed(() => order.value?.status === 'COMPLETED')
+
 const shippingMethodText = computed(() => {
   const map = { EXPRESS: '国际快递', AIR: '空运', SEA: '海运' }
   return map[order.value?.shipment?.shippingMethod] || '国际快递'
 })
 
-const payVisible = ref(false)
+const afterSaleClass = computed(() => {
+  const map = {
+    PENDING: 'border-amber-200 bg-amber-50/70 text-amber-700',
+    REJECTED: 'border-rose-200 bg-rose-50/70 text-rose-600',
+    REFUNDED: 'border-emerald-200 bg-emerald-50/70 text-emerald-700'
+  }
+  return map[afterSale.value?.status] || 'border-slate-200 bg-slate-50 text-slate-600'
+})
 
 function money(amount) {
   const symbol = order.value?.currency === 'USD' ? '$' : '¥'
@@ -182,6 +239,7 @@ async function loadDetail() {
     console.error('加载订单详情失败', error)
     return null
   })
+  afterSale.value = await fetchAfterSaleByOrder(props.orderId).catch(() => null)
   loading.value = false
 }
 
@@ -236,11 +294,26 @@ async function handleReceive() {
   emit('updated')
 }
 
+async function handleApplied() {
+  await loadDetail()
+  emit('updated')
+}
+
+function openReview(item) {
+  reviewItem.value = item
+  reviewVisible.value = true
+}
+
+async function handleReviewed() {
+  reviewItem.value = null
+}
+
 watch(
   () => props.modelValue,
   (opened) => {
     if (opened) {
       order.value = null
+      afterSale.value = null
       loadDetail()
     }
   }

@@ -40,7 +40,7 @@
           </router-link>
         </div>
 
-        <div class="mb-5">
+        <div v-if="pendingModules.length" class="mb-5">
           <p v-if="!collapsed" class="mb-2 px-3 text-[10px] uppercase tracking-[0.2em] text-white/25">业务模块 · 建设中</p>
           <div
             v-for="item in pendingModules"
@@ -129,6 +129,7 @@ import {
   BarChart3,
   ChevronDown,
   ClipboardList,
+  Coins,
   FolderTree,
   LayoutDashboard,
   LogOut,
@@ -138,9 +139,9 @@ import {
   PanelLeftOpen,
   ReceiptText,
   RotateCcw,
+  ScrollText,
   ShoppingCart,
   Store,
-  Truck,
   UserRound,
   Users
 } from 'lucide-vue-next'
@@ -154,14 +155,25 @@ const userStore = useUserStore()
 
 const collapsed = ref(false)
 
-const iconMap = { LayoutDashboard, UserRound, Users, Store, Package, FolderTree, MapPin, ShoppingCart, ClipboardList }
+const iconMap = {
+  LayoutDashboard,
+  UserRound,
+  Users,
+  Store,
+  Package,
+  FolderTree,
+  MapPin,
+  ShoppingCart,
+  ClipboardList,
+  ReceiptText,
+  RotateCcw,
+  BarChart3,
+  Coins,
+  ScrollText
+}
 
-const pendingModules = [
-  { title: '支付与履约', icon: ReceiptText },
-  { title: '物流跟踪', icon: Truck },
-  { title: '售后与退款', icon: RotateCcw },
-  { title: '经营统计', icon: BarChart3 }
-]
+// 阶段五完成后所有规划中的业务模块均已上线，保留空数组以便后续扩展
+const pendingModules = []
 
 const menuGroups = computed(() => {
   const menus = resolveMenus(userStore.roleCode)

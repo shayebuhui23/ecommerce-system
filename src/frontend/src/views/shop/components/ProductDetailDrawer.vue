@@ -44,6 +44,25 @@
             <p class="mt-2 text-xs leading-6 text-slate-400">{{ product.descriptionEn || 'No English description yet.' }}</p>
           </div>
 
+          <div class="mt-5">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">商品评价</p>
+              <span class="text-[11px] text-slate-400">
+                {{ summary.reviewCount }} 条 · 平均 {{ summary.averageRating || 0 }} 分
+              </span>
+            </div>
+            <div v-if="reviews.length" class="mt-2 space-y-2">
+              <div v-for="review in reviews" :key="review.id" class="rounded-xl border border-slate-100 px-3 py-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] text-slate-500">{{ review.reviewer }}</span>
+                  <el-rate :model-value="review.rating" disabled size="small" />
+                </div>
+                <p class="mt-1 text-xs leading-5 text-slate-600">{{ review.content || '该用户未填写评价内容' }}</p>
+              </div>
+            </div>
+            <p v-else class="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-400">还没有评价，购买并完成订单后可以评价</p>
+          </div>
+
           <div v-if="product.skus && product.skus.length" class="mt-5">
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">可选规格</p>
             <div class="mt-2 space-y-2">
@@ -102,6 +121,7 @@ import { ElMessage } from 'element-plus'
 import { Info, PackageX } from 'lucide-vue-next'
 import { fetchProductDetail } from '../../../api/product'
 import { addToCart } from '../../../api/cart'
+import { fetchProductReviews, fetchReviewSummary } from '../../../api/review'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -117,6 +137,8 @@ const visible = computed({
 const loading = ref(false)
 const adding = ref(false)
 const product = ref(null)
+const reviews = ref([])
+const summary = ref({ reviewCount: 0, averageRating: 0 })
 
 function formatPrice(item) {
   const symbol = item.currency === 'USD' ? '$' : '¥'
@@ -143,12 +165,24 @@ watch(
     if (!opened || !props.productId) return
     loading.value = true
     product.value = null
+    reviews.value = []
+    summary.value = { reviewCount: 0, averageRating: 0 }
+
     const data = await fetchProductDetail(props.productId).catch((error) => {
       console.error('加载商品详情失败', error)
       return null
     })
-    loading.value = false
     product.value = data
+
+    if (data) {
+      const [reviewPage, reviewSummary] = await Promise.all([
+        fetchProductReviews(props.productId, { pageNum: 1, pageSize: 3 }).catch(() => null),
+        fetchReviewSummary(props.productId).catch(() => null)
+      ])
+      reviews.value = reviewPage?.records || []
+      if (reviewSummary) summary.value = reviewSummary
+    }
+    loading.value = false
   }
 )
 </script>

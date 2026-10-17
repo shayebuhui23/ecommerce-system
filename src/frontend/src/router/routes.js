@@ -68,10 +68,34 @@ export const menuRoutes = [
     meta: { title: '订单管理', icon: 'ClipboardList', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
   },
   {
+    path: '/admin/after-sales',
+    name: 'AfterSaleManage',
+    component: () => import('../views/admin/AfterSaleManageView.vue'),
+    meta: { title: '售后管理', icon: 'RotateCcw', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
+  },
+  {
+    path: '/admin/statistics',
+    name: 'Statistics',
+    component: () => import('../views/admin/StatisticsView.vue'),
+    meta: { title: '经营统计', icon: 'BarChart3', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
+  },
+  {
     path: '/admin/users',
     name: 'UserManage',
     component: () => import('../views/admin/UserManageView.vue'),
     meta: { title: '用户管理', icon: 'Users', group: '系统管理', roles: ['ADMIN'] }
+  },
+  {
+    path: '/admin/exchange-rates',
+    name: 'ExchangeRates',
+    component: () => import('../views/admin/ExchangeRateView.vue'),
+    meta: { title: '汇率管理', icon: 'Coins', group: '系统管理', roles: ['ADMIN'] }
+  },
+  {
+    path: '/admin/operation-logs',
+    name: 'OperationLogs',
+    component: () => import('../views/admin/OperationLogView.vue'),
+    meta: { title: '操作日志', icon: 'ScrollText', group: '系统管理', roles: ['ADMIN'] }
   }
 ]
 

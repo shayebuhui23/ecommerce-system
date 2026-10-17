@@ -13,6 +13,7 @@ import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.security.LoginUserUtil;
+import com.ecommerce.service.OperationLogService;
 import com.ecommerce.service.ShipmentService;
 import com.ecommerce.vo.ShipmentVO;
 import lombok.extern.slf4j.Slf4j;
@@ -38,10 +39,14 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     private final OrderMapper orderMapper;
     private final ShipmentMapper shipmentMapper;
+    private final OperationLogService operationLogService;
 
-    public ShipmentServiceImpl(OrderMapper orderMapper, ShipmentMapper shipmentMapper) {
+    public ShipmentServiceImpl(OrderMapper orderMapper,
+                               ShipmentMapper shipmentMapper,
+                               OperationLogService operationLogService) {
         this.orderMapper = orderMapper;
         this.shipmentMapper = shipmentMapper;
+        this.operationLogService = operationLogService;
     }
 
     @Override
@@ -86,6 +91,8 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         log.info("订单发货：orderNo={}, company={}, trackingNo={}",
                 order.getOrderNo(), shipment.getShippingCompany(), shipment.getTrackingNo());
+        operationLogService.record("SHIPMENT", "订单发货",
+                order.getOrderNo() + " | " + shipment.getShippingCompany() + " " + shipment.getTrackingNo());
         return ShipmentVO.from(shipment);
     }
 
@@ -132,6 +139,7 @@ public class ShipmentServiceImpl implements ShipmentService {
             shipmentMapper.updateById(shipmentUpdate);
         }
         log.info("订单已确认收货：orderNo={}", order.getOrderNo());
+        operationLogService.record("SHIPMENT", "确认收货", order.getOrderNo());
     }
 
     private Order requireAccessibleOrder(Long orderId) {
