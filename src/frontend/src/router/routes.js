@@ -19,6 +19,30 @@ export const menuRoutes = [
     meta: { title: '个人资料', icon: 'UserRound', group: '概览' }
   },
   {
+    path: '/shop',
+    name: 'Shop',
+    component: () => import('../views/shop/ShopView.vue'),
+    meta: { title: '商品浏览', icon: 'Store', group: '商城' }
+  },
+  {
+    path: '/admin/products',
+    name: 'ProductManage',
+    component: () => import('../views/admin/ProductManageView.vue'),
+    meta: { title: '商品管理', icon: 'Package', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
+  },
+  {
+    path: '/admin/categories',
+    name: 'CategoryManage',
+    component: () => import('../views/admin/CategoryManageView.vue'),
+    meta: { title: '分类管理', icon: 'FolderTree', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
+  },
+  {
+    path: '/addresses',
+    name: 'Addresses',
+    component: () => import('../views/AddressView.vue'),
+    meta: { title: '收货地址', icon: 'MapPin', group: '我的' }
+  },
+  {
     path: '/admin/users',
     name: 'UserManage',
     component: () => import('../views/admin/UserManageView.vue'),

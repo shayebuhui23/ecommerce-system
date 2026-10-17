@@ -15,7 +15,17 @@
               <p class="mt-0.5 font-mono text-xs text-slate-400">@{{ profile.username }}</p>
             </div>
           </div>
-          <RoleTag :code="userStore.roleCode" :name="userStore.roleName" tone="light" />
+          <div class="flex items-center gap-2 pb-1">
+            <RoleTag :code="userStore.roleCode" :name="userStore.roleName" tone="light" />
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600"
+              @click="openEdit"
+            >
+              <PencilLine class="mr-1 inline h-3 w-3" />
+              编辑资料
+            </button>
+          </div>
         </div>
 
         <div class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -47,16 +57,86 @@
         </div>
       </div>
     </section>
+
+    <el-dialog v-model="dialogVisible" title="编辑个人资料" width="460px" align-center>
+      <el-form :model="form" label-position="top" class="pt-1">
+        <el-form-item label="昵称">
+          <el-input v-model="form.nickname" maxlength="50" placeholder="显示在界面上的名称" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="form.phone" maxlength="30" placeholder="+86 138 0000 0000" />
+        </el-form-item>
+        <el-form-item label="所在国家或地区">
+          <el-input v-model="form.country" maxlength="64" placeholder="China" />
+        </el-form-item>
+        <p class="text-[11px] leading-5 text-slate-400">用户名、邮箱与角色由系统管理，如需变更请联系系统管理员。</p>
+      </el-form>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-xl border border-slate-200 px-4 py-2 text-xs text-slate-600 hover:bg-slate-50"
+            @click="dialogVisible = false"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 px-4 py-2 text-xs text-white hover:shadow-md disabled:opacity-60"
+            :disabled="submitting"
+            @click="submit"
+          >
+            {{ submitting ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Info } from 'lucide-vue-next'
+import { computed, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Info, PencilLine } from 'lucide-vue-next'
 import RoleTag from '../components/RoleTag.vue'
 import { useUserStore } from '../stores/user'
+import { updateProfile } from '../api/user'
 
 const userStore = useUserStore()
+
+const dialogVisible = ref(false)
+const submitting = ref(false)
+const form = reactive({ nickname: '', phone: '', country: '' })
+
+function openEdit() {
+  const info = userStore.userInfo || {}
+  Object.assign(form, {
+    nickname: info.nickname || '',
+    phone: info.phone || '',
+    country: info.country || ''
+  })
+  dialogVisible.value = true
+}
+
+async function submit() {
+  submitting.value = true
+  const ok = await updateProfile({
+    nickname: form.nickname || null,
+    phone: form.phone || null,
+    country: form.country || null
+  })
+    .then(() => true)
+    .catch((error) => {
+      console.error('保存资料失败', error)
+      return false
+    })
+  submitting.value = false
+  if (!ok) return
+
+  await userStore.refreshUserInfo()
+  ElMessage.success('资料已更新')
+  dialogVisible.value = false
+}
 
 const profile = computed(() => userStore.userInfo || {})
 

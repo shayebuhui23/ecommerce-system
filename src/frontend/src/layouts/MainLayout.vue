@@ -127,15 +127,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BarChart3,
-  Boxes,
   ChevronDown,
+  FolderTree,
   LayoutDashboard,
   LogOut,
+  MapPin,
+  Package,
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
   RotateCcw,
   ShoppingBag,
+  Store,
   Truck,
   UserRound,
   Users
@@ -150,10 +153,9 @@ const userStore = useUserStore()
 
 const collapsed = ref(false)
 
-const iconMap = { LayoutDashboard, UserRound, Users }
+const iconMap = { LayoutDashboard, UserRound, Users, Store, Package, FolderTree, MapPin }
 
 const pendingModules = [
-  { title: '商品与分类', icon: Boxes },
   { title: '购物车与订单', icon: ShoppingBag },
   { title: '支付与履约', icon: ReceiptText },
   { title: '物流跟踪', icon: Truck },

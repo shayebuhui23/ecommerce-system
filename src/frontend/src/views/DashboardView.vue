@@ -15,13 +15,13 @@
             <span class="brand-gradient-text">{{ userStore.roleName || '未分配角色' }}</span>
           </h2>
           <p class="mt-3 max-w-xl text-sm leading-6 text-white/55">
-            当前处于骨架阶段：工程结构、数据库、统一响应与三角色权限已就绪，业务模块将按六阶段逐步接入。
+            当前处于阶段二：商品分类、商品与 SKU、商品浏览筛选、收货地址与个人资料已接入，订单与支付将在后续阶段开放。
           </p>
         </div>
         <div class="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur">
           <p class="text-[11px] uppercase tracking-[0.18em] text-white/35">当前阶段</p>
-          <p class="mt-1 font-mono text-lg">阶段一 · 项目初始化</p>
-          <p class="mt-1 text-xs text-white/45">骨架已可登录、鉴权与联调</p>
+          <p class="mt-1 font-mono text-lg">阶段二 · 商品与客户</p>
+          <p class="mt-1 text-xs text-white/45">商品、分类与地址已可操作</p>
         </div>
       </div>
     </section>
@@ -124,13 +124,13 @@ const greeting = computed(() => {
 const metrics = [
   { label: '数据库表', value: '17', hint: '商品 / 订单 / 售后全覆盖', icon: Database },
   { label: '系统角色', value: '3', hint: '管理员、商家运营、普通客户', icon: Users },
-  { label: '核心接口', value: '6', hint: '注册、登录、用户信息与启停', icon: Workflow },
-  { label: '业务模块', value: '0 / 8', hint: '骨架阶段，待后续接入', icon: Boxes }
+  { label: '核心接口', value: '22', hint: '认证、用户、商品、分类与地址', icon: Workflow },
+  { label: '业务模块', value: '3 / 8', hint: '商品、分类、收货地址已接入', icon: Boxes }
 ]
 
 const stages = [
   { index: 1, name: '项目初始化', desc: '工程、数据库、统一响应、登录与角色权限', done: true },
-  { index: 2, name: '商品与客户功能', desc: '分类、商品、SKU、搜索与收货地址', done: false },
+  { index: 2, name: '商品与客户功能', desc: '分类、商品、SKU、搜索与收货地址', done: true },
   { index: 3, name: '购物车与订单', desc: '购物车、下单、库存预扣与状态机', done: false },
   { index: 4, name: '支付与履约', desc: '模拟支付、发货、物流与确认收货', done: false },
   { index: 5, name: '售后与扩展', desc: '退款审核、评价、币种汇率与统计', done: false },

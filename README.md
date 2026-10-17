@@ -94,8 +94,24 @@ npm run dev
 | POST | `/api/auth/login` | 公开 | 用户名或邮箱 + 密码登录，返回 token 与用户信息 |
 | POST | `/api/auth/logout` | 登录 | 注销当前登录态 |
 | GET | `/api/user/me` | 登录 | 当前用户信息与角色 |
+| PUT | `/api/user/profile` | 登录 | 修改昵称、联系电话与国家或地区 |
 | GET | `/api/user/page` | ADMIN | 分页查询用户，支持关键字搜索 |
 | PUT | `/api/user/status` | ADMIN | 启用 / 禁用账号 |
+| GET | `/api/category/tree` | 登录 | 两级分类树 |
+| POST | `/api/category` | ADMIN / STAFF | 新增分类 |
+| PUT | `/api/category/{id}` | ADMIN / STAFF | 编辑分类 |
+| DELETE | `/api/category/{id}` | ADMIN / STAFF | 删除分类（有子分类或商品时拒绝） |
+| GET | `/api/product/page` | 登录 | 商品分页与搜索；客户仅能看到上架商品 |
+| GET | `/api/product/{id}` | 登录 | 商品详情（含中英文描述与 SKU） |
+| POST | `/api/product` | ADMIN / STAFF | 新增商品（可同时提交 SKU 列表） |
+| PUT | `/api/product/{id}` | ADMIN / STAFF | 编辑商品与 SKU |
+| PUT | `/api/product/{id}/status` | ADMIN / STAFF | 上架 / 下架 |
+| DELETE | `/api/product/{id}` | ADMIN / STAFF | 逻辑删除商品 |
+| GET | `/api/address/list` | 登录 | 当前用户的收货地址列表 |
+| POST | `/api/address` | 登录 | 新增收货地址（首个自动设为默认） |
+| PUT | `/api/address/{id}` | 登录 | 编辑地址（校验数据归属） |
+| DELETE | `/api/address/{id}` | 登录 | 删除地址（校验数据归属） |
+| PUT | `/api/address/{id}/default` | 登录 | 设为默认地址 |
 
 统一响应结构：
 
@@ -115,7 +131,7 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 ## 七、开发进度
 
 - [x] 阶段一：项目初始化（工程、数据库、统一响应、登录与角色权限）
-- [ ] 阶段二：商品与客户功能
+- [x] 阶段二：商品与客户功能（分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）
 - [ ] 阶段三：购物车与订单
 - [ ] 阶段四：支付与履约
 - [ ] 阶段五：售后与扩展功能
@@ -146,6 +162,11 @@ cd frontend; npm run build
 | `02-dashboard-admin.png` | 管理员工作台与角色菜单 |
 | `03-user-management.png` | 管理员用户管理与启停入口 |
 | `04-forbidden.png` | 普通客户访问管理员页面被拦截至 403 |
+| `05-product-manage.png` | 商家商品管理（8 个演示商品、缺货与上下架状态） |
+| `06-category-manage.png` | 两级分类管理 |
+| `07-shop.png` | 客户端跨境商品目录与分类筛选 |
+| `08-product-detail.png` | 商品详情抽屉（中英文描述与 SKU 规格） |
+| `09-address.png` | 国际收货地址管理 |
 
 接口层验证结果（curl / PowerShell 实测）：
 
