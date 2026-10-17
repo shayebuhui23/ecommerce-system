@@ -184,7 +184,7 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 - [x] 阶段三：购物车与订单（购物车、下单、库存预扣、订单查询与取消）
 - [x] 阶段四：支付与履约（模拟支付、发货、物流跟踪、确认收货）
 - [x] 阶段五：售后与扩展功能（退款审核、商品评价、币种汇率、经营统计、操作审计）
-- [ ] 阶段六：测试、修复与交付
+- [x] 阶段六：测试、修复与交付（回归 43 项通过、部署说明、代码统计与交付清单）
 
 详细计划见 `docs/plan.md`，需求见 `docs/初始规划.md`。
 
@@ -229,6 +229,7 @@ cd src/frontend; npm run build
 | `20-statistics.png` | 经营统计看板 |
 | `21-exchange-rate.png` | 汇率管理 |
 | `22-operation-log.png` | 操作审计日志 |
+| `23-e2e-regression.png` | 阶段六端到端回归（下单→支付→发货→收货全链路） |
 
 接口层验证结果（curl / PowerShell 实测）：
 
@@ -266,8 +267,64 @@ git push educoder main
 
 ## 十二、测试用例与报告
 
-- 测试用例文档：`test/test-cases/`
-- 接口冒烟脚本：`test/api/smoke.ps1`（本机 PowerShell 直接执行，覆盖登录、401、403 与商品可见性）
-- Java 单元测试：`src/backend/src/test/`（`mvn test` 执行）
+| 材料 | 位置 | 说明 |
+| ---- | ---- | ---- |
+| 功能测试用例 | `test/test-cases/` | 5 个阶段共 127 条用例，含缺陷跟踪 |
+| 接口回归脚本 | `test/api/smoke.ps1` | 43 项断言，覆盖认证、越权、购物车、下单、支付、发货、收货、评价、售后、统计 |
+| Java 单元测试 | `src/backend/src/test/` | `mvn test` 执行，3 个用例 |
+| 代码统计与交付清单 | `docs/代码统计与交付清单.md` | 分层规模、接口数量、测试统计、交付物清单 |
+| 验证截图 | `docs/screenshots/` | 23 张，覆盖各阶段关键界面 |
 
-详见 `test/README.md`。
+执行方式：
+
+```powershell
+# 单元测试
+cd src/backend; mvn test
+
+# 接口回归（需后端已启动、数据库已导入）
+cd d:/ecommerce-system
+powershell -ExecutionPolicy Bypass -File test/api/smoke.ps1
+```
+
+最近一次回归结果：`mvn test` 3/3 通过，`smoke.ps1` 43/43 通过，前端构建成功，浏览器端到端链路通过。
+
+## 十三、常见问题
+
+**Q1：启动后端报 `Access denied for user 'root'`**
+数据库密码没有注入。检查 `src/backend/src/main/resources/application-local.yml` 是否存在且密码正确，或启动前设置环境变量：
+
+```powershell
+$env:MYSQL_PASSWORD="你的密码"
+cd src/backend; mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+**Q2：8080 或 5173 端口被占用**
+先结束占用进程再启动：
+
+```powershell
+Get-NetTCPConnection -LocalPort 8080,5173 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+**Q3：前端页面能打开但接口 404 / 跨域**
+确认后端已在 8080 运行；Vite 已把 `/api` 代理到 `http://127.0.0.1:8080`，不要直接修改 `baseURL`。
+
+**Q4：`mvn` 用的是 JDK 8 导致编译失败**
+`JAVA_HOME` 必须指向 JDK 11 及以上，改完需重开终端：
+
+```powershell
+java -version; mvn -v
+```
+
+**Q5：演示账号登录提示被禁用**
+管理员 `admin` 在「用户管理」中重新启用即可；禁用后该账号的 token 会被后端拦截并返回 401。
+
+**Q6：想恢复初始演示数据**
+重新执行脚本（会清空并重建演示数据，不影响表结构）：
+
+```powershell
+mysql -u root -p < src/database/seed.sql
+```
+
+**Q7：终端里中文输出乱码**
+属于 PowerShell 代码页问题，不影响数据本身，可先执行 `chcp 65001` 再运行脚本。

@@ -15,13 +15,13 @@
             <span class="brand-gradient-text">{{ userStore.roleName || '未分配角色' }}</span>
           </h2>
           <p class="mt-3 max-w-xl text-sm leading-6 text-white/55">
-            阶段五已完成：退款售后、商品评价、币种汇率、经营统计与操作审计全部接入，系统进入测试与交付阶段。
+            六个阶段全部完成：商品、购物车、订单、支付、物流、售后、评价、统计已闭环，接口回归 43 项全部通过，可直接演示交付。
           </p>
         </div>
         <div class="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur">
           <p class="text-[11px] uppercase tracking-[0.18em] text-white/35">当前阶段</p>
-          <p class="mt-1 font-mono text-lg">阶段五 · 售后与扩展</p>
-          <p class="mt-1 text-xs text-white/45">售后、评价、汇率、统计与审计</p>
+          <p class="mt-1 font-mono text-lg">阶段六 · 测试与交付</p>
+          <p class="mt-1 text-xs text-white/45">回归 43 项通过，材料齐备</p>
         </div>
       </div>
     </section>
@@ -134,7 +134,7 @@ const stages = [
   { index: 3, name: '购物车与订单', desc: '购物车、下单、库存预扣与状态机', done: true },
   { index: 4, name: '支付与履约', desc: '模拟支付、发货、物流与确认收货', done: true },
   { index: 5, name: '售后与扩展', desc: '退款审核、评价、币种汇率与统计', done: true },
-  { index: 6, name: '测试与交付', desc: '接口测试、缺陷修复与运行说明', done: false }
+  { index: 6, name: '测试与交付', desc: '接口测试、缺陷修复与运行说明', done: true }
 ]
 
 const abilityMap = {
