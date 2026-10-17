@@ -133,6 +133,12 @@ npm run dev
 | GET | `/api/order/page` | 登录 | 订单分页；客户仅能看到自己的订单 |
 | GET | `/api/order/{id}` | 登录 | 订单详情（含商品快照与地址快照） |
 | PUT | `/api/order/{id}/cancel` | 登录 | 取消待付款订单并恢复库存 |
+| POST | `/api/payment/pay` | 登录 | 模拟支付（可模拟成功/失败），成功后订单转待发货 |
+| GET | `/api/payment/order/{orderId}` | 登录 | 查询订单支付记录 |
+| GET | `/api/payment/page` | ADMIN | 管理员分页查询支付记录 |
+| POST | `/api/order/{id}/ship` | ADMIN / STAFF | 发货并录入物流公司与单号 |
+| GET | `/api/order/{id}/shipment` | 登录 | 查询订单物流信息 |
+| POST | `/api/order/{id}/receive` | 登录 | 客户确认收货 |
 
 统一响应结构：
 
@@ -154,7 +160,7 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 - [x] 阶段一：项目初始化（工程、数据库、统一响应、登录与角色权限）
 - [x] 阶段二：商品与客户功能（分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）
 - [x] 阶段三：购物车与订单（购物车、下单、库存预扣、订单查询与取消）
-- [ ] 阶段四：支付与履约
+- [x] 阶段四：支付与履约（模拟支付、发货、物流跟踪、确认收货）
 - [ ] 阶段五：售后与扩展功能
 - [ ] 阶段六：测试、修复与交付
 
@@ -193,6 +199,9 @@ cd src/frontend; npm run build
 | `12-orders.png` | 我的订单与状态筛选 |
 | `13-order-detail.png` | 订单详情与取消入口 |
 | `14-order-manage.png` | 商家订单管理 |
+| `15-payment.png` | 模拟支付弹窗（含失败分支演示） |
+| `16-ship.png` | 商家发货弹窗（物流公司与单号） |
+| `17-shipment.png` | 客户查看物流信息与确认收货 |
 
 接口层验证结果（curl / PowerShell 实测）：
 
