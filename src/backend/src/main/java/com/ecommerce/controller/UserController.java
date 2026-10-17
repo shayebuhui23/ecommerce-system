@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.ecommerce.common.PageResult;
 import com.ecommerce.common.Result;
 import com.ecommerce.common.RoleCode;
+import com.ecommerce.dto.ProfileDTO;
 import com.ecommerce.dto.UserStatusDTO;
 import com.ecommerce.service.UserService;
 import com.ecommerce.vo.UserInfoVO;
@@ -49,6 +50,11 @@ public class UserController {
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
             @RequestParam(required = false) String keyword) {
         return Result.success(userService.pageUsers(pageNum, pageSize, keyword));
+    }
+
+    @PutMapping("/profile")
+    public Result<UserInfoVO> updateProfile(@Valid @RequestBody ProfileDTO dto) {
+        return Result.success("资料已更新", userService.updateProfile(dto));
     }
 
     @SaCheckRole(RoleCode.ADMIN)

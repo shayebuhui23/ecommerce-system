@@ -2,6 +2,7 @@ package com.ecommerce.service;
 
 import com.ecommerce.common.PageResult;
 import com.ecommerce.dto.LoginDTO;
+import com.ecommerce.dto.ProfileDTO;
 import com.ecommerce.dto.RegisterDTO;
 import com.ecommerce.dto.UserStatusDTO;
 import com.ecommerce.vo.LoginVO;
@@ -41,4 +42,9 @@ public interface UserService {
      * 管理员启用/禁用用户。
      */
     void updateStatus(UserStatusDTO dto);
+
+    /**
+     * 修改当前登录用户的昵称、联系电话与所在国家或地区。
+     */
+    UserInfoVO updateProfile(ProfileDTO dto);
 }

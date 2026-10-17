@@ -7,6 +7,7 @@ import com.ecommerce.common.PageResult;
 import com.ecommerce.common.ResultCode;
 import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.LoginDTO;
+import com.ecommerce.dto.ProfileDTO;
 import com.ecommerce.dto.RegisterDTO;
 import com.ecommerce.dto.UserStatusDTO;
 import com.ecommerce.entity.Role;
@@ -149,6 +150,25 @@ public class UserServiceImpl implements UserService {
         update.setStatus(dto.getStatus());
         userMapper.updateById(update);
         log.info("管理员变更用户状态：userId={}, status={}", target.getId(), dto.getStatus());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserInfoVO updateProfile(ProfileDTO dto) {
+        Long userId = LoginUserUtil.currentUserId();
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+
+        User update = new User();
+        update.setId(userId);
+        update.setNickname(dto.getNickname());
+        update.setPhone(dto.getPhone());
+        update.setCountry(dto.getCountry());
+        userMapper.updateById(update);
+        log.info("用户修改个人资料：userId={}", userId);
+        return currentUser();
     }
 
     private boolean existsByUsername(String username) {
