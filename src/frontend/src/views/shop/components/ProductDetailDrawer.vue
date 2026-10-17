@@ -66,16 +66,25 @@
 
           <div class="mt-6 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/70 px-4 py-3 text-xs leading-5 text-brand-700">
             <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            购物车与下单功能将在下一阶段开放，当前可先浏览商品资料与规格信息。
+            加入购物车后可前往结算，订单金额与库存会在下单时由后端重新校验。
           </div>
 
-          <button
-            type="button"
-            disabled
-            class="mt-4 w-full cursor-not-allowed rounded-xl bg-slate-200 py-3 text-sm text-slate-500"
-          >
-            加入购物车 · 下一阶段开放
-          </button>
+          <div class="mt-4 flex gap-2">
+            <button
+              type="button"
+              class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-3 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="product.stock === 0 || adding"
+              @click="handleAddToCart"
+            >
+              {{ adding ? '正在加入…' : product.stock === 0 ? '暂时缺货' : '加入购物车' }}
+            </button>
+            <router-link
+              to="/cart"
+              class="flex items-center justify-center rounded-xl border border-slate-200 px-4 text-sm text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600"
+            >
+              去购物车
+            </router-link>
+          </div>
         </div>
       </template>
 
@@ -89,8 +98,10 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Info, PackageX } from 'lucide-vue-next'
 import { fetchProductDetail } from '../../../api/product'
+import { addToCart } from '../../../api/cart'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -104,11 +115,26 @@ const visible = computed({
 })
 
 const loading = ref(false)
+const adding = ref(false)
 const product = ref(null)
 
 function formatPrice(item) {
   const symbol = item.currency === 'USD' ? '$' : '¥'
   return `${symbol}${Number(item.price).toFixed(2)}`
+}
+
+async function handleAddToCart() {
+  if (!product.value) return
+  adding.value = true
+  const ok = await addToCart({ productId: product.value.id, quantity: 1 })
+    .then(() => true)
+    .catch((error) => {
+      console.error('加入购物车失败', error)
+      return false
+    })
+  adding.value = false
+  if (!ok) return
+  ElMessage.success('已加入购物车')
 }
 
 watch(
