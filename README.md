@@ -1,6 +1,6 @@
 # 小型电商订单系统（跨境贸易场景扩展版）
 
-软件工程课程期末综合实践项目。当前处于**骨架阶段**：工程结构、数据库、统一响应与三角色权限已完成，商品、购物车、订单、支付、物流、售后等业务模块将在后续阶段接入。
+软件工程课程期末综合实践项目。已完成阶段一（工程骨架、数据库与三角色权限）和阶段二（商品分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）；购物车、订单、支付、物流与售后将在后续阶段接入。
 
 ## 技术栈
 
@@ -22,19 +22,31 @@
 
 ```
 ecommerce-system/
-├── backend/            Spring Boot 后端
-├── frontend/           Vue 3 前端
-├── database/           schema.sql 建表脚本、seed.sql 演示数据
-├── docs/               需求与开发计划文档
+├── src/                        源代码
+│   ├── backend/                Spring Boot 后端（Java 单元测试位于 src/backend/src/test）
+│   ├── frontend/               Vue 3 前端
+│   └── database/               schema.sql 建表脚本、seed.sql 演示数据
+├── docs/                       需求、设计文档、会议记录与验证截图
+│   ├── 初始规划.md
+│   ├── plan.md
+│   ├── meetings/               会议记录
+│   └── screenshots/            功能验证截图
+├── test/                       测试用例与测试报告
+│   ├── test-cases/             功能测试用例
+│   └── api/                    接口冒烟测试脚本
+├── .gitignore
 └── README.md
 ```
+
+> 说明：`src/backend/src/test` 是 Maven 约定的 Java 单元测试目录，随工程构建执行；
+> 顶层 `test/` 用于存放课程要求的测试用例文档与接口测试脚本。
 
 ## 一、初始化数据库
 
 ```powershell
 cd d:/ecommerce-system
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seed.sql
+mysql -u root -p < src/database/schema.sql
+mysql -u root -p < src/database/seed.sql
 ```
 
 执行后得到 `ecommerce` 库，包含 17 张业务表（users、roles、categories、products、product_skus、carts、cart_items、addresses、orders、order_items、payments、shipments、after_sales、reviews、inventory_logs、exchange_rates、operation_logs）。
@@ -49,32 +61,32 @@ mysql -u root -p < database/seed.sql
 
    ```powershell
    $env:MYSQL_PASSWORD="你的数据库密码"
-   cd backend
+   cd src/backend
    mvn spring-boot:run
    ```
 
-2. **本地配置文件**
+   2. **本地配置文件**
 
-   复制 `backend/src/main/resources/application-local.yml.example` 为 `application-local.yml` 并填写密码，然后：
+    复制 `src/backend/src/main/resources/application-local.yml.example` 为同目录下的 `application-local.yml` 并填写密码，然后：
 
-   ```powershell
-   cd backend
-   mvn spring-boot:run -Dspring-boot.run.profiles=local
-   ```
+    ```powershell
+    cd src/backend
+    mvn spring-boot:run -Dspring-boot.run.profiles=local
+    ```
 
 后端默认端口 `8080`，接口前缀 `/api`。
 
 ## 三、启动前端
 
 ```powershell
-cd frontend
+cd src/frontend
 npm install
 npm run dev
 ```
 
 访问 http://localhost:5173 。Vite 已把 `/api` 代理到 `http://127.0.0.1:8080`，无需额外配置跨域。
 
-生产构建：`npm run build`，产物在 `frontend/dist`。
+生产构建：`npm run build`，产物在 `src/frontend/dist`。
 
 ## 四、演示账号
 
@@ -143,13 +155,13 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 
 ```powershell
 # 后端编译
-cd backend; mvn -DskipTests compile
+cd src/backend; mvn -DskipTests compile
 
 # 后端测试
-cd backend; mvn test
+cd src/backend; mvn test
 
 # 前端构建
-cd frontend; npm run build
+cd src/frontend; npm run build
 ```
 
 ## 九、验证截图
@@ -174,3 +186,30 @@ cd frontend; npm run build
 - 未携带 token 访问 `/api/user/me` 返回 401。
 - 普通客户访问 `/api/user/page` 返回 403。
 - 管理员分页查询返回 3 个演示账号。
+
+## 十、代码托管（头歌平台）
+
+课程要求源码托管在**头歌平台创建的项目仓库**，仓库地址需填写在报告 4.4 节，评审期间必须可访问。本地仓库已初始化并按功能分批提交，配置远端后即可推送：
+
+```powershell
+# 1. 在头歌平台创建项目仓库，复制其 Git 地址（形如 https://git.educoder.net/<账号>/<项目名>.git）
+git remote add origin <头歌仓库地址>
+
+# 2. 确认主分支为 main 并首次推送
+git branch -M main
+git push -u origin main
+```
+
+说明：
+
+- `node_modules/`、`dist/`、`target/`、`application-local.yml` 已在 `.gitignore` 中排除，仓库中不含依赖、构建产物与数据库密码。
+- 后续每次功能完成后执行 `git add` / `git commit` / `git push`，保持提交记录连续、均衡（过程考核依据）。
+- 若头歌仓库已存在初始 README 等文件，首次推送前先 `git pull --rebase origin main` 合并。
+
+## 十一、测试用例与报告
+
+- 测试用例文档：`test/test-cases/`
+- 接口冒烟脚本：`test/api/smoke.ps1`（本机 PowerShell 直接执行，覆盖登录、401、403 与商品可见性）
+- Java 单元测试：`src/backend/src/test/`（`mvn test` 执行）
+
+详见 `test/README.md`。

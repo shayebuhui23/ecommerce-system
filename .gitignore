@@ -1,18 +1,18 @@
-# ---------- Maven ----------
-backend/target/
+# ---------- Java / Maven ----------
+src/backend/target/
 *.jar
-!backend/.mvn/wrapper/maven-wrapper.jar
+!**/.mvn/wrapper/maven-wrapper.jar
 
 # ---------- Node ----------
-frontend/node_modules/
-frontend/dist/
+src/frontend/node_modules/
+src/frontend/dist/
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
 # ---------- 本地配置（含数据库密码，禁止提交） ----------
-backend/src/main/resources/application-local.yml
-backend/src/main/resources/application-local.yaml
+src/backend/src/main/resources/application-local.yml
+src/backend/src/main/resources/application-local.yaml
 .env
 .env.local
 
@@ -38,3 +38,7 @@ Desktop.ini
 
 # ---------- IDE 助手数据 ----------
 .codebuddy/
+
+# ---------- 课程原始资料（本地保留，不入库） ----------
+docs/*.pdf
+docs/*.docx
