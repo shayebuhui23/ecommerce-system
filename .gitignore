@@ -32,3 +32,6 @@ logs/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ---------- 浏览器自动化临时目录 ----------
+.playwright-cli/

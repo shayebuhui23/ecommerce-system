@@ -1,0 +1,57 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]: Cross-border commerce
+    - heading "把每一笔跨境订单 跑成一条清晰的流水线" [level=1] [ref=e8]:
+      - text: 把每一笔跨境订单
+      - text: 跑成一条清晰的流水线
+    - paragraph [ref=e9]: 从商品目录、购物车到支付、发货与退款售后，一套后台串起整条履约链路。 支持中英文商品资料、国际收货地址与币种换算，适配小型跨境外贸团队的日常运营。
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: "17"
+        - paragraph [ref=e13]: 业务数据表
+      - generic [ref=e14]:
+        - paragraph [ref=e15]: "3"
+        - paragraph [ref=e16]: 角色权限
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: CNY/USD
+        - paragraph [ref=e19]: 模拟币种
+    - generic [ref=e20]:
+      - generic [ref=e21]: 库存预扣与订单快照，保证历史订单金额不被改价影响
+      - generic [ref=e23]: 订单状态机收敛状态流转，非法操作在后端直接拒绝
+      - generic [ref=e25]: 退款审核与库存恢复分离，避免重复退款与重复回库
+    - paragraph [ref=e27]: Software Engineering Practice · 单商家模式 · 模拟支付与模拟物流
+  - generic [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: E
+          - generic [ref=e33]:
+            - paragraph [ref=e34]: 订单运营中枢
+            - paragraph [ref=e35]: Ecommerce Ops
+        - generic [ref=e36]: v1.0
+      - generic [ref=e37]:
+        - button "登录" [ref=e38] [cursor=pointer]
+        - button "注册" [ref=e39] [cursor=pointer]
+      - generic [ref=e40]:
+        - generic [ref=e44]:
+          - img [ref=e46]
+          - textbox "用户名或邮箱" [ref=e49]
+        - generic [ref=e53]:
+          - img [ref=e55]
+          - textbox "登录密码" [ref=e58]
+        - button "进入工作台" [ref=e59] [cursor=pointer]:
+          - text: 进入工作台
+          - img [ref=e60]
+      - generic [ref=e62]:
+        - generic [ref=e63]: 演示账号一键填充
+        - generic [ref=e66]:
+          - button "系统管理员 admin / 123456" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: 系统管理员
+            - generic [ref=e70]: admin / 123456
+          - button "商家运营 staff / 123456" [ref=e71] [cursor=pointer]:
+            - generic [ref=e72]: 商家运营
+            - generic [ref=e74]: staff / 123456
+          - button "普通客户 customer / 123456" [ref=e75] [cursor=pointer]:
+            - generic [ref=e76]: 普通客户
+            - generic [ref=e78]: customer / 123456
+    - paragraph [ref=e79]: 软件工程课程期末综合实践 · 模拟支付与模拟物流，不接入真实支付与物流服务

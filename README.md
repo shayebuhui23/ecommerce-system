@@ -135,3 +135,21 @@ cd backend; mvn test
 # 前端构建
 cd frontend; npm run build
 ```
+
+## 九、验证截图
+
+骨架阶段已在浏览器中完成登录、角色菜单、越权拦截与退出流程验证，截图见 `docs/screenshots/`：
+
+| 文件 | 内容 |
+| ---- | ---- |
+| `01-login.png` | 登录页（含演示账号一键填充） |
+| `02-dashboard-admin.png` | 管理员工作台与角色菜单 |
+| `03-user-management.png` | 管理员用户管理与启停入口 |
+| `04-forbidden.png` | 普通客户访问管理员页面被拦截至 403 |
+
+接口层验证结果（curl / PowerShell 实测）：
+
+- 正确密码登录返回 token 与角色；错误密码返回 400。
+- 未携带 token 访问 `/api/user/me` 返回 401。
+- 普通客户访问 `/api/user/page` 返回 403。
+- 管理员分页查询返回 3 个演示账号。

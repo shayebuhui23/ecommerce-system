@@ -101,6 +101,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Boxes, Database, ShieldCheck, Users, Workflow, ArrowUpRight } from 'lucide-vue-next'
+import RoleTag from '../components/RoleTag.vue'
 import { useUserStore } from '../stores/user'
 
 const userStore = useUserStore()

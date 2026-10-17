@@ -49,7 +49,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="nickname" label="昵称" min-width="110" />
-        <el-table-column prop="email" label="邮箱" min-width="180" />
+        <el-table-column prop="email" label="邮箱" min-width="210" show-overflow-tooltip />
         <el-table-column label="角色" min-width="110">
           <template #default="{ row }">
             <RoleTag :code="row.roleCode" :name="row.roleName" tone="light" />
