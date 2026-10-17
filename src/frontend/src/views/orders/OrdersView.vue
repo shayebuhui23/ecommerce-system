@@ -3,8 +3,8 @@
     <section class="rounded-2xl border border-slate-200/70 bg-white p-5">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 class="text-[15px] font-medium text-slate-800">我的订单</h2>
-          <p class="mt-1 text-xs text-slate-400">下单后进入待付款状态，待付款订单可取消并自动恢复库存</p>
+          <h2 class="text-[15px] font-medium text-slate-800">{{ pageTitle }}</h2>
+          <p class="mt-1 text-xs text-slate-400">{{ pageHint }}</p>
         </div>
         <div class="flex items-center gap-2">
           <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 transition-colors focus-within:border-brand-300 focus-within:bg-white">
@@ -72,7 +72,7 @@
               查看详情
             </button>
             <button
-              v-if="order.status === 'PENDING_PAYMENT'"
+              v-if="!isMerchant && order.status === 'PENDING_PAYMENT'"
               type="button"
               class="rounded-lg px-3 py-1.5 text-xs text-rose-500 transition-colors hover:bg-rose-50"
               @click="cancel(order)"
@@ -88,8 +88,8 @@
         class="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white py-16"
       >
         <ReceiptText class="h-7 w-7 text-slate-300" />
-        <p class="text-sm text-slate-500">还没有订单</p>
-        <router-link to="/shop" class="text-xs text-brand-600 hover:underline">去挑几件商品</router-link>
+        <p class="text-sm text-slate-500">{{ isMerchant ? '还没有客户订单' : '还没有订单' }}</p>
+        <router-link v-if="!isMerchant" to="/shop" class="text-xs text-brand-600 hover:underline">去挑几件商品</router-link>
       </div>
     </section>
 
@@ -111,11 +111,15 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ReceiptText, Search } from 'lucide-vue-next'
 import { cancelOrder, fetchOrderPage } from '../../api/order'
+import { useUserStore } from '../../stores/user'
 import OrderDetailDrawer from './components/OrderDetailDrawer.vue'
+
+const userStore = useUserStore()
+const isMerchant = computed(() => userStore.roleCode === 'STAFF')
 
 const loading = ref(false)
 const rows = ref([])
@@ -125,14 +129,32 @@ const detailVisible = ref(false)
 const detailId = ref(null)
 const query = reactive({ pageNum: 1, pageSize: 10, status: '' })
 
-const tabs = [
-  { label: '全部', value: '' },
-  { label: '待付款', value: 'PENDING_PAYMENT' },
-  { label: '待发货', value: 'PENDING_SHIPMENT' },
-  { label: '已发货', value: 'SHIPPED' },
-  { label: '已完成', value: 'COMPLETED' },
-  { label: '已取消', value: 'CANCELLED' }
-]
+const pageTitle = computed(() => (isMerchant.value ? '客户订单' : '我的订单'))
+const pageHint = computed(() =>
+  isMerchant.value
+    ? '查看本店商品相关订单，已付款订单可直接发货'
+    : '下单后进入待付款状态，待付款订单可取消并自动恢复库存'
+)
+
+const tabs = computed(() =>
+  isMerchant.value
+    ? [
+        { label: '全部', value: '' },
+        { label: '待处理', value: 'PENDING_SHIPMENT' },
+        { label: '待付款', value: 'PENDING_PAYMENT' },
+        { label: '已发货', value: 'SHIPPED' },
+        { label: '已完成', value: 'COMPLETED' },
+        { label: '已取消', value: 'CANCELLED' }
+      ]
+    : [
+        { label: '全部', value: '' },
+        { label: '待付款', value: 'PENDING_PAYMENT' },
+        { label: '待发货', value: 'PENDING_SHIPMENT' },
+        { label: '已发货', value: 'SHIPPED' },
+        { label: '已完成', value: 'COMPLETED' },
+        { label: '已取消', value: 'CANCELLED' }
+      ]
+)
 
 function money(currency, amount) {
   const symbol = currency === 'USD' ? '$' : '¥'

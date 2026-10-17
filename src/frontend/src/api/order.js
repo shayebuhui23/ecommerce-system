@@ -15,3 +15,7 @@ export function fetchOrderDetail(id) {
 export function cancelOrder(id) {
   return request.put(`/order/${id}/cancel`)
 }
+
+export function urgeOrder(id) {
+  return request.post(`/order/${id}/urge`)
+}

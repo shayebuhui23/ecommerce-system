@@ -11,18 +11,19 @@ import java.io.Serializable;
 /**
  * 注册入参。
  * <p>
- * 注意：本 DTO 不包含角色字段，注册用户的角色在服务端固定为 CUSTOMER，
- * 防止客户端通过传入 roleId 自行提权。
+ * 注意：本 DTO 不接收角色 ID，只接受注册类型（客户 / 商家），
+ * 由服务端映射为 CUSTOMER 或 STAFF，防止客户端通过传入 roleId 自行提权。
  */
 @Data
 public class RegisterDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @NotBlank(message = "用户名不能为空")
-    @Size(min = 3, max = 50, message = "用户名长度需在 3~50 个字符之间")
-    @Pattern(regexp = "^[A-Za-z0-9_]+$", message = "用户名只能包含字母、数字和下划线")
-    private String username;
+    /**
+     * 注册类型：CUSTOMER（普通客户，默认）/ MERCHANT（商家）。
+     */
+    @Pattern(regexp = "^(CUSTOMER|MERCHANT)$", message = "注册类型只能是 CUSTOMER 或 MERCHANT")
+    private String registerType;
 
     @NotBlank(message = "邮箱不能为空")
     @Email(message = "邮箱格式不正确")

@@ -1,11 +1,23 @@
 <template>
   <el-dialog v-model="visible" title="订单发货" width="520px" align-center>
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="pt-1">
-      <div class="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-        订单 {{ order?.orderNo }} · {{ order?.consignee }} · {{ order?.country }}
+      <div class="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+        <p>订单 {{ order?.orderNo }} · {{ order?.consignee }} · {{ order?.country }}</p>
+        <p class="mt-1">收货地址：{{ fullReceiverAddress }}</p>
       </div>
 
       <div class="mt-3 grid grid-cols-2 gap-x-3">
+        <el-form-item v-if="isMerchant" label="选择发货地址" class="col-span-2">
+          <el-select v-model="form.addressId" class="w-full" placeholder="选择已保存的发货地址" @change="handleAddressChange">
+            <el-option v-for="item in addresses" :key="item.id" :value="item.id" :label="addressLabel(item)" />
+          </el-select>
+          <p v-if="!addresses.length" class="mt-1 text-[11px] text-slate-400">
+            尚未维护发货地址，可前往「发货地址」页面添加
+          </p>
+          <p v-else-if="selectedAddressText" class="mt-1 text-[11px] text-slate-400">
+            发货地址：{{ selectedAddressText }}
+          </p>
+        </el-form-item>
         <el-form-item label="物流公司" prop="shippingCompany" class="col-span-2">
           <el-input v-model="form.shippingCompany" maxlength="64" placeholder="例如 DHL / FedEx / 顺丰" />
         </el-form-item>
@@ -59,6 +71,11 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { shipOrder } from '../../../api/shipment'
+import { fetchAddressList } from '../../../api/address'
+import { useUserStore } from '../../../stores/user'
+
+const userStore = useUserStore()
+const isMerchant = computed(() => userStore.roleCode === 'STAFF')
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -73,7 +90,9 @@ const visible = computed({
 
 const submitting = ref(false)
 const formRef = ref()
+const addresses = ref([])
 const form = reactive({
+  addressId: null,
   shippingCompany: '',
   trackingNo: '',
   shippingMethod: 'EXPRESS',
@@ -82,6 +101,45 @@ const form = reactive({
   estimatedDelivery: null
 })
 
+const fullReceiverAddress = computed(() => {
+  if (!props.order) return '—'
+  return [props.order.country, props.order.provinceState, props.order.city, props.order.postalCode, props.order.addressLine]
+    .filter(Boolean)
+    .join(' · ')
+})
+
+const selectedAddress = computed(() => addresses.value.find((item) => item.id === form.addressId))
+
+const selectedAddressText = computed(() => {
+  const item = selectedAddress.value
+  if (!item) return ''
+  return [item.country, item.provinceState, item.city, item.postalCode, item.addressLine]
+    .filter(Boolean)
+    .join(' · ')
+})
+
+function addressLabel(item) {
+  return [item.consignee, item.country, item.city].filter(Boolean).join(' · ')
+}
+
+function handleAddressChange(id) {
+  const item = addresses.value.find((address) => address.id === id)
+  if (item?.country) form.fromCountry = item.country
+}
+
+async function loadAddresses() {
+  if (!isMerchant.value) return
+  addresses.value = await fetchAddressList().catch((error) => {
+    console.error('加载发货地址失败', error)
+    return []
+  })
+  if (!form.addressId && addresses.value.length) {
+    const preferred = addresses.value.find((item) => item.isDefault === 1) || addresses.value[0]
+    form.addressId = preferred.id
+    if (preferred.country) form.fromCountry = preferred.country
+  }
+}
+
 const rules = {
   shippingCompany: [{ required: true, message: '请填写物流公司', trigger: 'blur' }],
   trackingNo: [{ required: true, message: '请填写物流单号', trigger: 'blur' }]
@@ -89,6 +147,7 @@ const rules = {
 
 function reset(order) {
   Object.assign(form, {
+    addressId: null,
     shippingCompany: '',
     trackingNo: '',
     shippingMethod: 'EXPRESS',
@@ -104,7 +163,15 @@ async function submit() {
   if (!valid || !props.order) return
 
   submitting.value = true
-  const ok = await shipOrder(props.order.id, { ...form })
+  const payload = {
+    shippingCompany: form.shippingCompany,
+    trackingNo: form.trackingNo,
+    shippingMethod: form.shippingMethod,
+    fromCountry: form.fromCountry,
+    toCountry: form.toCountry,
+    estimatedDelivery: form.estimatedDelivery
+  }
+  const ok = await shipOrder(props.order.id, payload)
     .then(() => true)
     .catch((error) => {
       console.error('发货失败', error)
@@ -122,7 +189,9 @@ async function submit() {
 watch(
   () => props.modelValue,
   (opened) => {
-    if (opened) reset(props.order)
+    if (!opened) return
+    reset(props.order)
+    loadAddresses()
   }
 )
 </script>

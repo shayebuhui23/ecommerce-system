@@ -11,10 +11,15 @@ import com.ecommerce.dto.SkuDTO;
 import com.ecommerce.entity.Category;
 import com.ecommerce.entity.Product;
 import com.ecommerce.entity.ProductSku;
+import com.ecommerce.entity.Role;
+import com.ecommerce.entity.User;
 import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.CategoryMapper;
 import com.ecommerce.mapper.ProductMapper;
 import com.ecommerce.mapper.ProductSkuMapper;
+import com.ecommerce.mapper.RoleMapper;
+import com.ecommerce.mapper.UserMapper;
+import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.ProductService;
 import com.ecommerce.vo.ProductDetailVO;
 import com.ecommerce.vo.ProductVO;
@@ -24,10 +29,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,25 +56,44 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper productMapper;
     private final ProductSkuMapper productSkuMapper;
     private final CategoryMapper categoryMapper;
+    private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
 
     public ProductServiceImpl(ProductMapper productMapper,
                               ProductSkuMapper productSkuMapper,
-                              CategoryMapper categoryMapper) {
+                              CategoryMapper categoryMapper,
+                              UserMapper userMapper,
+                              RoleMapper roleMapper) {
         this.productMapper = productMapper;
         this.productSkuMapper = productSkuMapper;
         this.categoryMapper = categoryMapper;
+        this.userMapper = userMapper;
+        this.roleMapper = roleMapper;
     }
 
     @Override
-    public PageResult<ProductVO> page(long pageNum, long pageSize, String keyword, Long categoryId, Integer status) {
-        boolean manager = isManager();
+    public PageResult<ProductVO> page(long pageNum, long pageSize, String keyword, Long categoryId,
+                                      Integer status, Long sellerId, boolean mine) {
+        boolean admin = StpUtil.hasRole(RoleCode.ADMIN);
+        boolean staff = StpUtil.hasRole(RoleCode.STAFF);
+        boolean manager = admin || staff;
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         // 客户侧只能看到上架商品，即使前端传入 status 也不生效
         if (!manager) {
             wrapper.eq(Product::getStatus, STATUS_ON_SHELF);
-        } else if (status != null) {
-            wrapper.eq(Product::getStatus, status);
+        } else {
+            if (admin) {
+                if (sellerId != null) {
+                    wrapper.eq(Product::getSellerId, sellerId);
+                }
+            } else if (staff && mine) {
+                // 商品管理只看本店商品；商品浏览仍可查看全平台在售目录
+                wrapper.eq(Product::getSellerId, LoginUserUtil.currentUserId());
+            }
+            if (status != null) {
+                wrapper.eq(Product::getStatus, status);
+            }
         }
 
         if (categoryId != null) {
@@ -84,7 +111,17 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> page = productMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
 
         Map<Long, Category> categoryMap = loadCategoryMap();
-        return PageResult.of(page, product -> ProductVO.from(product, categoryName(categoryMap, product.getCategoryId())));
+        Map<Long, String> sellerMap = loadSellerMap(page.getRecords());
+        return PageResult.of(page, product -> {
+            ProductVO vo = ProductVO.from(product,
+                    categoryName(categoryMap, product.getCategoryId()),
+                    sellerName(sellerMap, product.getSellerId()));
+            // 成本价仅对管理员与商家可见，客户侧不返回
+            if (manager) {
+                vo.setCostPrice(product.getCostPrice());
+            }
+            return vo;
+        });
     }
 
     @Override
@@ -98,7 +135,13 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Category category = product.getCategoryId() == null ? null : categoryMapper.selectById(product.getCategoryId());
-        ProductDetailVO vo = ProductDetailVO.from(product, category == null ? null : category.getName());
+        User seller = product.getSellerId() == null ? null : userMapper.selectById(product.getSellerId());
+        ProductDetailVO vo = ProductDetailVO.from(product,
+                category == null ? null : category.getName(),
+                seller == null ? null : displayName(seller));
+        if (isManager()) {
+            vo.setCostPrice(product.getCostPrice());
+        }
         List<ProductSku> skus = productSkuMapper.selectList(
                 new LambdaQueryWrapper<ProductSku>().eq(ProductSku::getProductId, id));
         vo.setSkus(skus.stream().map(SkuVO::from).collect(Collectors.toList()));
@@ -117,6 +160,7 @@ public class ProductServiceImpl implements ProductService {
 
         Product product = new Product();
         fillProduct(product, dto);
+        product.setSellerId(resolveSellerId(dto));
         product.setSalesCount(0);
         productMapper.insert(product);
 
@@ -129,6 +173,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(rollbackFor = Exception.class)
     public void update(Long id, ProductDTO dto) {
         Product existing = requireProduct(id);
+        requireManageable(existing);
         requireEnabledCategory(dto.getCategoryId());
         if (productMapper.selectCount(new LambdaQueryWrapper<Product>()
                 .eq(Product::getSkuCode, dto.getSkuCode().trim())
@@ -140,6 +185,7 @@ public class ProductServiceImpl implements ProductService {
         Product update = new Product();
         update.setId(id);
         fillProduct(update, dto);
+        update.setSellerId(resolveSellerId(dto));
         productMapper.updateById(update);
 
         syncSkus(id, dto.getSkus());
@@ -149,7 +195,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(Long id, Integer status) {
-        requireProduct(id);
+        requireManageable(requireProduct(id));
         Product update = new Product();
         update.setId(id);
         update.setStatus(status);
@@ -160,7 +206,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
-        requireProduct(id);
+        requireManageable(requireProduct(id));
         // 逻辑删除商品及其 SKU，历史订单仍保留快照数据
         productSkuMapper.delete(new LambdaQueryWrapper<ProductSku>().eq(ProductSku::getProductId, id));
         productMapper.deleteById(id);
@@ -176,6 +222,7 @@ public class ProductServiceImpl implements ProductService {
         product.setDescriptionEn(dto.getDescriptionEn());
         product.setImageUrl(dto.getImageUrl());
         product.setPrice(dto.getPrice());
+        product.setCostPrice(dto.getCostPrice() == null ? BigDecimal.ZERO : dto.getCostPrice());
         product.setCurrency(StringUtils.hasText(dto.getCurrency()) ? dto.getCurrency() : "CNY");
         product.setStock(dto.getStock());
         product.setStatus(dto.getStatus() == null ? STATUS_OFF_SHELF : dto.getStatus());
@@ -255,6 +302,57 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在");
         }
         return product;
+    }
+
+    /**
+     * 商家只能维护本店商品，管理员可维护全部商品。
+     */
+    private void requireManageable(Product product) {
+        if (StpUtil.hasRole(RoleCode.ADMIN)) {
+            return;
+        }
+        if (!LoginUserUtil.currentUserId().equals(product.getSellerId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "只能操作本店商品");
+        }
+    }
+
+    /**
+     * 商家新增商品自动归属当前商家；管理员必须显式指定商家。
+     */
+    private Long resolveSellerId(ProductDTO dto) {
+        if (!StpUtil.hasRole(RoleCode.ADMIN)) {
+            return LoginUserUtil.currentUserId();
+        }
+        if (dto.getSellerId() == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "请选择商品所属商家");
+        }
+        User seller = userMapper.selectById(dto.getSellerId());
+        Role staffRole = roleMapper.selectByCode(RoleCode.STAFF);
+        if (seller == null || staffRole == null || !staffRole.getId().equals(seller.getRoleId())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "所选商家不存在或不是商家运营账号");
+        }
+        return seller.getId();
+    }
+
+    private Map<Long, String> loadSellerMap(List<Product> products) {
+        List<Long> sellerIds = products.stream()
+                .map(Product::getSellerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (sellerIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return userMapper.selectBatchIds(sellerIds).stream()
+                .collect(Collectors.toMap(User::getId, this::displayName));
+    }
+
+    private String sellerName(Map<Long, String> sellerMap, Long sellerId) {
+        return sellerId == null ? null : sellerMap.get(sellerId);
+    }
+
+    private String displayName(User user) {
+        return StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
     }
 
     private void requireEnabledCategory(Long categoryId) {

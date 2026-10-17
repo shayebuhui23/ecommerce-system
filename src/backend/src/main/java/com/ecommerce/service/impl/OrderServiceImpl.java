@@ -17,6 +17,7 @@ import com.ecommerce.entity.Order;
 import com.ecommerce.entity.OrderItem;
 import com.ecommerce.entity.Product;
 import com.ecommerce.entity.Shipment;
+import com.ecommerce.entity.User;
 import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.AddressMapper;
 import com.ecommerce.mapper.CartItemMapper;
@@ -26,6 +27,7 @@ import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.ProductMapper;
 import com.ecommerce.mapper.ShipmentMapper;
+import com.ecommerce.mapper.UserMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.ExchangeRateService;
 import com.ecommerce.service.OperationLogService;
@@ -47,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -76,6 +79,7 @@ public class OrderServiceImpl implements OrderService {
     private final AddressMapper addressMapper;
     private final InventoryLogMapper inventoryLogMapper;
     private final ShipmentMapper shipmentMapper;
+    private final UserMapper userMapper;
     private final ExchangeRateService exchangeRateService;
     private final OperationLogService operationLogService;
 
@@ -87,6 +91,7 @@ public class OrderServiceImpl implements OrderService {
                             AddressMapper addressMapper,
                             InventoryLogMapper inventoryLogMapper,
                             ShipmentMapper shipmentMapper,
+                            UserMapper userMapper,
                             ExchangeRateService exchangeRateService,
                             OperationLogService operationLogService) {
         this.orderMapper = orderMapper;
@@ -97,6 +102,7 @@ public class OrderServiceImpl implements OrderService {
         this.addressMapper = addressMapper;
         this.inventoryLogMapper = inventoryLogMapper;
         this.shipmentMapper = shipmentMapper;
+        this.userMapper = userMapper;
         this.exchangeRateService = exchangeRateService;
         this.operationLogService = operationLogService;
     }
@@ -185,10 +191,17 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword) {
+    public PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword, Long sellerId) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         if (!isManager()) {
             wrapper.eq(Order::getUserId, LoginUserUtil.currentUserId());
+        } else {
+            Long scopeSellerId = resolveSellerScope(sellerId);
+            if (scopeSellerId != null) {
+                wrapper.inSql(Order::getId,
+                        "SELECT oi.order_id FROM order_items oi INNER JOIN products p ON p.id = oi.product_id"
+                                + " WHERE p.seller_id = " + scopeSellerId);
+            }
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(Order::getStatus, status.trim());
@@ -200,9 +213,11 @@ public class OrderServiceImpl implements OrderService {
 
         Page<Order> page = orderMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
         Map<Long, Integer> itemCountMap = countItems(page.getRecords());
+        Map<Long, String> usernameMap = loadUsernames(page.getRecords());
         return PageResult.of(page, order -> {
             OrderVO vo = OrderVO.from(order);
             vo.setItemCount(itemCountMap.getOrDefault(order.getId(), 0));
+            vo.setCustomerUsername(usernameMap.get(order.getUserId()));
             return vo;
         });
     }
@@ -211,9 +226,37 @@ public class OrderServiceImpl implements OrderService {
     public OrderDetailVO detail(Long id) {
         Order order = requireAccessibleOrder(id);
         OrderDetailVO vo = OrderDetailVO.from(order);
+        User customer = order.getUserId() == null ? null : userMapper.selectById(order.getUserId());
+        vo.setCustomerUsername(customer == null ? null : customer.getUsername());
+
         List<OrderItem> items = orderItemMapper.selectList(
                 new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
-        vo.setItems(items.stream().map(OrderItemVO::from).collect(Collectors.toList()));
+        List<OrderItemVO> itemVos = items.stream().map(OrderItemVO::from).collect(Collectors.toList());
+        // 补充商品所属商家，便于订单详情展示履约归属
+        List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
+        Map<Long, Product> productMap = productIds.isEmpty()
+                ? Collections.emptyMap()
+                : productMapper.selectBatchIds(productIds).stream()
+                        .collect(Collectors.toMap(Product::getId, product -> product));
+        List<Long> sellerIds = productMap.values().stream()
+                .map(Product::getSellerId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, User> sellerMap = sellerIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(sellerIds).stream()
+                        .collect(Collectors.toMap(User::getId, user -> user));
+        for (OrderItemVO itemVo : itemVos) {
+            Product product = productMap.get(itemVo.getProductId());
+            if (product == null || product.getSellerId() == null) {
+                continue;
+            }
+            itemVo.setSellerId(product.getSellerId());
+            User seller = sellerMap.get(product.getSellerId());
+            if (seller != null) {
+                itemVo.setSellerName(StringUtils.hasText(seller.getNickname())
+                        ? seller.getNickname() : seller.getUsername());
+            }
+        }
+        vo.setItems(itemVos);
         vo.setItemCount(items.stream().mapToInt(OrderItem::getQuantity).sum());
 
         List<Shipment> shipments = shipmentMapper.selectList(
@@ -252,6 +295,22 @@ public class OrderServiceImpl implements OrderService {
                     item.getQuantity(), LoginUserUtil.currentUserId(), "取消订单恢复库存");
         }
         log.info("订单已取消并恢复库存：orderNo={}", order.getOrderNo());
+    }
+
+    @Override
+    public void urge(Long id) {
+        Order order = orderMapper.selectById(id);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
+        }
+        if (!LoginUserUtil.currentUserId().equals(order.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权操作他人订单");
+        }
+        if (!OrderStatus.PENDING_SHIPMENT.name().equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "当前订单状态不支持催发货");
+        }
+        operationLogService.record("ORDER", "客户催发货", order.getOrderNo());
+        log.info("客户催发货：orderNo={}, userId={}", order.getOrderNo(), order.getUserId());
     }
 
     private OrderItem buildOrderItem(Product product, Integer quantity, BigDecimal subtotal) {
@@ -322,7 +381,40 @@ public class OrderServiceImpl implements OrderService {
         if (!isManager() && !LoginUserUtil.currentUserId().equals(order.getUserId())) {
             throw new BusinessException(ResultCode.FORBIDDEN, "无权访问他人订单");
         }
+        // 商家只能访问包含本店商品的订单
+        if (isStaffOnly() && !orderContainsSeller(order.getId(), LoginUserUtil.currentUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权访问其他商家的订单");
+        }
         return order;
+    }
+
+    /**
+     * 管理员按传入的商家筛选；商家运营固定只看本店订单；客户不附加商家条件。
+     */
+    private Long resolveSellerScope(Long sellerId) {
+        if (StpUtil.hasRole(RoleCode.ADMIN)) {
+            return sellerId;
+        }
+        if (StpUtil.hasRole(RoleCode.STAFF)) {
+            return LoginUserUtil.currentUserId();
+        }
+        return null;
+    }
+
+    private boolean isStaffOnly() {
+        return !StpUtil.hasRole(RoleCode.ADMIN) && StpUtil.hasRole(RoleCode.STAFF);
+    }
+
+    private boolean orderContainsSeller(Long orderId, Long sellerId) {
+        List<OrderItem> items = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
+        if (items.isEmpty()) {
+            return true;
+        }
+        List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
+        return productMapper.selectCount(new LambdaQueryWrapper<Product>()
+                .in(Product::getId, productIds)
+                .eq(Product::getSellerId, sellerId)) > 0;
     }
 
     private Map<Long, Integer> countItems(List<Order> orders) {
@@ -334,6 +426,16 @@ public class OrderServiceImpl implements OrderService {
                 new LambdaQueryWrapper<OrderItem>().in(OrderItem::getOrderId, orderIds));
         return items.stream().collect(Collectors.groupingBy(OrderItem::getOrderId,
                 Collectors.summingInt(OrderItem::getQuantity)));
+    }
+
+    private Map<Long, String> loadUsernames(List<Order> orders) {
+        List<Long> userIds = orders.stream().map(Order::getUserId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return userMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getUsername));
     }
 
     private String generateOrderNo() {

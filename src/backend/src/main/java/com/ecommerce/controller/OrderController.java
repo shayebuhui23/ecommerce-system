@@ -1,7 +1,6 @@
 package com.ecommerce.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.ecommerce.common.PageResult;
 import com.ecommerce.common.Result;
 import com.ecommerce.common.RoleCode;
@@ -55,8 +54,9 @@ public class OrderController {
             @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页条数不能小于 1")
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String keyword) {
-        return Result.success(orderService.page(pageNum, pageSize, status, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long sellerId) {
+        return Result.success(orderService.page(pageNum, pageSize, status, keyword, sellerId));
     }
 
     @GetMapping("/{id}")
@@ -73,10 +73,19 @@ public class OrderController {
     /**
      * 商家发货。
      */
-    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @SaCheckRole(RoleCode.STAFF)
     @PostMapping("/{id}/ship")
     public Result<ShipmentVO> ship(@PathVariable Long id, @Valid @RequestBody ShipDTO dto) {
         return Result.success("发货成功", shipmentService.ship(id, dto));
+    }
+
+    /**
+     * 客户催发货，仅允许对已付款待发货的订单发起。
+     */
+    @PostMapping("/{id}/urge")
+    public Result<Void> urge(@PathVariable Long id) {
+        orderService.urge(id);
+        return Result.success("已提醒商家尽快发货", null);
     }
 
     /**

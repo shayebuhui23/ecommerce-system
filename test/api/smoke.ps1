@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BaseUrl = 'http://127.0.0.1:8080',
     [string]$Password = '123456'
 )
@@ -53,8 +53,8 @@ Write-Host "target: $BaseUrl" -ForegroundColor DarkGray
 
 # ---------------- 1. 认证与权限 ----------------
 $admin = Login 'admin'
-$staff = Login 'staff'
-$customer = Login 'customer'
+$staff = Login 'seller000001'
+$customer = Login 'user000001'
 
 $adminToken = $admin.data.token
 $staffToken = $staff.data.token

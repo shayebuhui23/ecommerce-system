@@ -19,6 +19,8 @@ public class OrderVO implements Serializable {
     private Long id;
     private String orderNo;
     private Long userId;
+    /** 下单客户的用户名 */
+    private String customerUsername;
     private String status;
     private String statusText;
     private String currency;

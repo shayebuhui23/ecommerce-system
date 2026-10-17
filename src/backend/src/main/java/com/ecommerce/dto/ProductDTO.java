@@ -26,6 +26,10 @@ public class ProductDTO implements Serializable {
     @NotNull(message = "请选择商品分类")
     private Long categoryId;
 
+    /** 所属商家 ID，仅系统管理员新增/编辑商品时需要指定 */
+    @Min(value = 1, message = "请选择所属商家")
+    private Long sellerId;
+
     @NotBlank(message = "商品 SKU 编码不能为空")
     @Size(max = 64, message = "SKU 编码不能超过 64 个字符")
     private String skuCode;
@@ -47,6 +51,10 @@ public class ProductDTO implements Serializable {
     @NotNull(message = "商品价格不能为空")
     @DecimalMin(value = "0.01", message = "商品价格必须大于 0")
     private BigDecimal price;
+
+    /** 成本价，用于商家成本管理与毛利统计 */
+    @DecimalMin(value = "0", message = "成本价不能为负数")
+    private BigDecimal costPrice;
 
     @Pattern(regexp = "^[A-Z]{3}$", message = "币种需为 3 位大写字母，如 CNY、USD")
     private String currency = "CNY";

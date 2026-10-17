@@ -47,8 +47,10 @@ public class ProductController {
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) @Min(0) @Max(1) Integer status) {
-        return Result.success(productService.page(pageNum, pageSize, keyword, categoryId, status));
+            @RequestParam(required = false) @Min(0) @Max(1) Integer status,
+            @RequestParam(required = false) Long sellerId,
+            @RequestParam(defaultValue = "false") boolean mine) {
+        return Result.success(productService.page(pageNum, pageSize, keyword, categoryId, status, sellerId, mine));
     }
 
     @GetMapping("/{id}")

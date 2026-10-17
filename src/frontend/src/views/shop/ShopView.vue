@@ -55,15 +55,39 @@
             全部
           </button>
           <button
-            v-for="item in categories"
+            v-for="item in visibleCategories"
             :key="item.id"
             type="button"
             class="rounded-full px-3 py-1.5 text-xs transition-colors"
             :class="categoryId === item.id ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
-            @click="selectCategory(item.id)"
+            @click="toggleCategory(item.id)"
           >
             {{ item.name }}
           </button>
+          <el-popover v-if="moreCategories.length" placement="bottom-end" :width="220" trigger="click">
+            <template #reference>
+              <button
+                type="button"
+                class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs transition-colors"
+                :class="moreActive ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+              >
+                更多分类
+                <ChevronDown class="h-3 w-3" />
+              </button>
+            </template>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button
+                v-for="item in moreCategories"
+                :key="item.id"
+                type="button"
+                class="rounded-lg px-2.5 py-2 text-left text-xs transition-colors"
+                :class="categoryId === item.id ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-50'"
+                @click="selectCategory(item.id)"
+              >
+                {{ item.name }}
+              </button>
+            </div>
+          </el-popover>
         </div>
       </div>
     </section>
@@ -134,8 +158,8 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { PackageX, Search } from 'lucide-vue-next'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ChevronDown, PackageX, Search } from 'lucide-vue-next'
 import { fetchProductPage } from '../../api/product'
 import { fetchCategoryTree } from '../../api/category'
 import ProductDetailDrawer from './components/ProductDetailDrawer.vue'
@@ -149,6 +173,11 @@ const categories = ref([])
 const detailVisible = ref(false)
 const detailId = ref(null)
 const query = reactive({ pageNum: 1, pageSize: 12 })
+
+// 标签栏固定展示前 4 个分类，其余收进「更多分类」
+const visibleCategories = computed(() => categories.value.slice(0, 4))
+const moreCategories = computed(() => categories.value.slice(4))
+const moreActive = computed(() => moreCategories.value.some((item) => item.id === categoryId.value))
 
 function formatPrice(item) {
   const symbol = item.currency === 'USD' ? '$' : '¥'
@@ -169,7 +198,8 @@ async function loadProducts() {
     pageNum: query.pageNum,
     pageSize: query.pageSize,
     keyword: keyword.value.trim() || undefined,
-    categoryId: categoryId.value || undefined
+    categoryId: categoryId.value || undefined,
+    status: 1
   }).catch((error) => {
     console.error('加载商品失败', error)
     return null
@@ -189,6 +219,11 @@ function selectCategory(id) {
   categoryId.value = id
   query.pageNum = 1
   loadProducts()
+}
+
+// 再次点击已选中的标签可取消筛选，等价于查看全部
+function toggleCategory(id) {
+  selectCategory(categoryId.value === id ? null : id)
 }
 
 function openDetail(id) {

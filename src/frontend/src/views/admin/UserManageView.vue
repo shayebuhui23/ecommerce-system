@@ -34,6 +34,19 @@
           </button>
         </div>
       </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          v-for="role in roleTabs"
+          :key="role.value"
+          type="button"
+          class="rounded-full px-3.5 py-1.5 text-xs transition-colors"
+          :class="roleCode === role.value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+          @click="selectRole(role.value)"
+        >
+          {{ role.label }}
+        </button>
+      </div>
     </section>
 
     <section class="rounded-2xl border border-slate-200/70 bg-white p-2">
@@ -124,16 +137,25 @@ const currentUserId = computed(() => userStore.userInfo?.id)
 
 const loading = ref(false)
 const keyword = ref('')
+const roleCode = ref('')
 const rows = ref([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10 })
+
+const roleTabs = [
+  { label: '全部角色', value: '' },
+  { label: '系统管理员', value: 'ADMIN' },
+  { label: '商家运营', value: 'STAFF' },
+  { label: '普通客户', value: 'CUSTOMER' }
+]
 
 async function loadUsers() {
   loading.value = true
   const data = await fetchUserPage({
     pageNum: query.pageNum,
     pageSize: query.pageSize,
-    keyword: keyword.value.trim() || undefined
+    keyword: keyword.value.trim() || undefined,
+    roleCode: roleCode.value || undefined
   }).catch((error) => {
     console.error('加载用户列表失败', error)
     return null
@@ -149,8 +171,15 @@ function handleSearch() {
   loadUsers()
 }
 
+function selectRole(value) {
+  roleCode.value = value
+  query.pageNum = 1
+  loadUsers()
+}
+
 function handleReset() {
   keyword.value = ''
+  roleCode.value = ''
   query.pageNum = 1
   loadUsers()
 }

@@ -4,7 +4,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 class="text-[15px] font-medium text-slate-800">订单管理</h2>
-          <p class="mt-1 text-xs text-slate-400">查看全部客户订单与履约状态；发货与物流将在下一阶段接入</p>
+          <p class="mt-1 text-xs text-slate-400">按商家查看客户订单与履约状态，发货与售后由商家处理</p>
         </div>
         <div class="flex items-center gap-2">
           <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-1.5 transition-colors focus-within:border-brand-300 focus-within:bg-white">
@@ -17,6 +17,9 @@
               @keyup.enter="handleSearch"
             />
           </div>
+          <el-select v-if="isAdmin" v-model="sellerId" placeholder="全部商家" clearable filterable class="!w-44" @change="handleSearch">
+            <el-option v-for="item in merchants" :key="item.id" :value="item.id" :label="item.nickname || item.username" />
+          </el-select>
           <el-select v-model="status" placeholder="全部状态" clearable class="!w-36" @change="handleSearch">
             <el-option v-for="item in statusOptions" :key="item.value" :value="item.value" :label="item.label" />
           </el-select>
@@ -38,9 +41,9 @@
         :header-cell-style="{ background: '#F8FAFC', color: '#64748B', fontWeight: 500, fontSize: '12px' }"
       >
         <el-table-column prop="orderNo" label="订单号" min-width="190" />
-        <el-table-column label="客户" min-width="90">
+        <el-table-column label="客户用户名" min-width="120">
           <template #default="{ row }">
-            <span class="text-xs text-slate-600">用户 #{{ row.userId }}</span>
+            <span class="text-xs text-slate-600">{{ row.customerUsername || '—' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="件数" width="80">
@@ -61,7 +64,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" min-width="160" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" :width="isAdmin ? 90 : 150" fixed="right">
           <template #default="{ row }">
             <div class="flex items-center gap-1">
               <button
@@ -71,8 +74,9 @@
               >
                 详情
               </button>
+              <!-- 管理员只查看详情，发货由商家在客户订单中完成 -->
               <button
-                v-if="row.status === 'PENDING_SHIPMENT'"
+                v-if="!isAdmin && row.status === 'PENDING_SHIPMENT'"
                 type="button"
                 class="rounded-lg px-2 py-1 text-xs text-emerald-600 transition-colors hover:bg-emerald-50"
                 @click="openShip(row)"
@@ -108,17 +112,24 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Search } from 'lucide-vue-next'
 import { fetchOrderPage } from '../../api/order'
+import { fetchUserPage } from '../../api/user'
+import { useUserStore } from '../../stores/user'
 import OrderDetailDrawer from '../orders/components/OrderDetailDrawer.vue'
 import ShipDialog from './components/ShipDialog.vue'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.roleCode === 'ADMIN')
 
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
 const keyword = ref('')
 const status = ref('')
+const sellerId = ref(null)
+const merchants = ref([])
 const detailVisible = ref(false)
 const detailId = ref(null)
 const shipVisible = ref(false)
@@ -157,7 +168,8 @@ async function loadOrders() {
     pageNum: query.pageNum,
     pageSize: query.pageSize,
     status: status.value || undefined,
-    keyword: keyword.value.trim() || undefined
+    keyword: keyword.value.trim() || undefined,
+    sellerId: isAdmin.value ? sellerId.value || undefined : undefined
   }).catch((error) => {
     console.error('加载订单失败', error)
     return null
@@ -183,5 +195,17 @@ function openShip(row) {
   shipVisible.value = true
 }
 
-onMounted(loadOrders)
+async function loadMerchants() {
+  if (!isAdmin.value) return
+  const data = await fetchUserPage({ pageNum: 1, pageSize: 100, roleCode: 'STAFF' }).catch((error) => {
+    console.error('加载商家列表失败', error)
+    return null
+  })
+  if (data) merchants.value = data.records || []
+}
+
+onMounted(() => {
+  loadMerchants()
+  loadOrders()
+})
 </script>

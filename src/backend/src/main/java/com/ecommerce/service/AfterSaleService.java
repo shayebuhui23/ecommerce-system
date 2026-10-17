@@ -26,7 +26,8 @@ public interface AfterSaleService {
     AfterSaleVO queryByOrder(Long orderId);
 
     /**
-     * 分页查询售后单：客户看自己的，商家与管理员看全部。
+     * 分页查询售后单：客户看自己的；商家只看本店商品的售后单；
+     * 管理员可查看全部并可按商家筛选。
      */
-    PageResult<AfterSaleVO> page(long pageNum, long pageSize, String status);
+    PageResult<AfterSaleVO> page(long pageNum, long pageSize, String status, Long sellerId);
 }

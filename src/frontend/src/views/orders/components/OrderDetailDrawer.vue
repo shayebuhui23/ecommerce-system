@@ -21,6 +21,11 @@
           <p class="mt-1 text-xs leading-5 text-slate-500">{{ fullAddress }}</p>
         </div>
 
+        <div v-if="sellerNames.length" class="mt-3 rounded-2xl bg-slate-50 p-4">
+          <p class="text-[11px] text-slate-400">商家信息</p>
+          <p class="mt-1 text-sm text-slate-800">{{ sellerNames.join('、') }}</p>
+        </div>
+
         <div class="mt-5">
           <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">商品明细</p>
           <div class="mt-2 space-y-3">
@@ -125,12 +130,36 @@
             确认收货
           </button>
           <button
-            v-if="canApplyRefund"
+            v-if="canUrge"
+            type="button"
+            class="flex-1 rounded-xl border border-sky-200 py-2.5 text-sm text-sky-600 transition-colors hover:bg-sky-50"
+            @click="handleUrge"
+          >
+            催发货
+          </button>
+          <button
+            v-if="canApplyRefund && order.status !== 'COMPLETED'"
             type="button"
             class="flex-1 rounded-xl border border-amber-200 py-2.5 text-sm text-amber-600 transition-colors hover:bg-amber-50"
-            @click="refundVisible = true"
+            @click="openAfterSale('退款')"
           >
             申请退款
+          </button>
+          <button
+            v-if="canApplyRefund && order.status === 'COMPLETED'"
+            type="button"
+            class="flex-1 rounded-xl border border-amber-200 py-2.5 text-sm text-amber-600 transition-colors hover:bg-amber-50"
+            @click="openAfterSale('售后')"
+          >
+            申请售后
+          </button>
+          <button
+            v-if="canApplyRefund && order.status === 'COMPLETED'"
+            type="button"
+            class="flex-1 rounded-xl border border-amber-200 py-2.5 text-sm text-amber-600 transition-colors hover:bg-amber-50"
+            @click="openAfterSale('退货')"
+          >
+            申请退货
           </button>
           <button
             v-if="showCancel"
@@ -140,11 +169,26 @@
           >
             取消订单
           </button>
+          <button
+            v-if="canShip"
+            type="button"
+            class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-2.5 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0"
+            @click="shipVisible = true"
+          >
+            发货
+          </button>
         </div>
 
         <PayDialog v-model="payVisible" :order="order" @paid="handlePaid" />
-        <AfterSaleDialog v-model="refundVisible" :order="order" @applied="handleApplied" />
+        <AfterSaleDialog
+          v-model="refundVisible"
+          :order="order"
+          :title="afterSaleTitle"
+          :preset-reason="afterSalePreset"
+          @applied="handleApplied"
+        />
         <ReviewDialog v-model="reviewVisible" :item="reviewItem" @reviewed="handleReviewed" />
+        <ShipDialog v-model="shipVisible" :order="order" @shipped="handleShipped" />
       </template>
 
       <div v-else-if="!loading" class="py-20 text-center text-sm text-slate-400">订单信息加载失败</div>
@@ -155,12 +199,14 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cancelOrder, fetchOrderDetail } from '../../../api/order'
+import { cancelOrder, fetchOrderDetail, urgeOrder } from '../../../api/order'
 import { receiveOrder } from '../../../api/shipment'
 import { fetchAfterSaleByOrder } from '../../../api/afterSale'
+import { useUserStore } from '../../../stores/user'
 import PayDialog from './PayDialog.vue'
 import AfterSaleDialog from './AfterSaleDialog.vue'
 import ReviewDialog from './ReviewDialog.vue'
+import ShipDialog from '../../admin/components/ShipDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -173,13 +219,20 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+const userStore = useUserStore()
+const isCustomer = computed(() => userStore.roleCode === 'CUSTOMER')
+const isMerchant = computed(() => userStore.roleCode === 'STAFF')
+
 const loading = ref(false)
 const order = ref(null)
 const afterSale = ref(null)
 const payVisible = ref(false)
 const refundVisible = ref(false)
 const reviewVisible = ref(false)
+const shipVisible = ref(false)
 const reviewItem = ref(null)
+const afterSaleTitle = ref('申请售后')
+const afterSalePreset = ref('')
 
 const fullAddress = computed(() => {
   if (!order.value) return ''
@@ -188,17 +241,26 @@ const fullAddress = computed(() => {
     .join(' · ')
 })
 
-const showCancel = computed(() => order.value?.status === 'PENDING_PAYMENT')
-const showPay = computed(() => order.value?.status === 'PENDING_PAYMENT')
-const showReceive = computed(() => order.value?.status === 'SHIPPED')
+const sellerNames = computed(() => {
+  const names = (order.value?.items || []).map((item) => item.sellerName).filter(Boolean)
+  return [...new Set(names)]
+})
+
+// 客户操作仅对客户展示，管理员与商家只处理履约
+const showCancel = computed(() => isCustomer.value && order.value?.status === 'PENDING_PAYMENT')
+const showPay = computed(() => isCustomer.value && order.value?.status === 'PENDING_PAYMENT')
+const showReceive = computed(() => isCustomer.value && order.value?.status === 'SHIPPED')
+const canShip = computed(() => isMerchant.value && order.value?.status === 'PENDING_SHIPMENT')
+const canUrge = computed(() => isCustomer.value && order.value?.status === 'PENDING_SHIPMENT')
 
 const canApplyRefund = computed(() => {
+  if (!isCustomer.value) return false
   const status = order.value?.status
   const refundable = ['PENDING_SHIPMENT', 'SHIPPED', 'COMPLETED'].includes(status)
   return refundable && !afterSale.value
 })
 
-const canReview = computed(() => order.value?.status === 'COMPLETED')
+const canReview = computed(() => isCustomer.value && order.value?.status === 'COMPLETED')
 
 const shippingMethodText = computed(() => {
   const map = { EXPRESS: '国际快递', AIR: '空运', SEA: '海运' }
@@ -295,6 +357,28 @@ async function handleReceive() {
 }
 
 async function handleApplied() {
+  await loadDetail()
+  emit('updated')
+}
+
+function openAfterSale(mode) {
+  afterSaleTitle.value = `申请${mode}`
+  afterSalePreset.value = mode === '退货' ? '退货退款' : ''
+  refundVisible.value = true
+}
+
+async function handleUrge() {
+  const ok = await urgeOrder(order.value.id)
+    .then(() => true)
+    .catch((error) => {
+      console.error('催发货失败', error)
+      return false
+    })
+  if (!ok) return
+  ElMessage.success('已提醒商家尽快发货')
+}
+
+async function handleShipped() {
   await loadDetail()
   emit('updated')
 }

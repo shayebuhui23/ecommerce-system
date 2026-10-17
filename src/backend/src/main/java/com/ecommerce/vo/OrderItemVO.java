@@ -16,6 +16,9 @@ public class OrderItemVO implements Serializable {
 
     private Long id;
     private Long productId;
+    /** 商品所属商家 */
+    private Long sellerId;
+    private String sellerName;
     private String productName;
     private String productNameEn;
     private String skuCode;

@@ -3,9 +3,16 @@
     <section class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white p-5">
       <div>
         <h2 class="text-[15px] font-medium text-slate-800">购物车</h2>
-        <p class="mt-1 text-xs text-slate-400">金额以商品当前价格实时计算；下架或库存不足的商品无法结算</p>
       </div>
       <div class="flex items-center gap-3 text-xs text-slate-400">
+        <el-checkbox
+          :model-value="allSelected"
+          :indeterminate="someSelected"
+          :disabled="!availableItems.length"
+          @change="toggleAll"
+        >
+          全选
+        </el-checkbox>
         <span>共 {{ cart.totalQuantity || 0 }} 件</span>
         <button
           v-if="items.length"
@@ -25,6 +32,12 @@
         class="flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-4 transition-all"
         :class="item.available ? 'border-slate-200/70' : 'border-rose-100 bg-rose-50/30'"
       >
+        <el-checkbox
+          class="shrink-0"
+          :model-value="selectedIds.includes(item.id)"
+          :disabled="!item.available"
+          @change="(checked) => toggleItem(item, checked)"
+        />
         <img
           v-if="item.imageUrl"
           :src="item.imageUrl"
@@ -79,17 +92,17 @@
     <section v-if="items.length" class="sticky bottom-4 rounded-2xl border border-slate-200/70 bg-white/95 p-5 shadow-soft backdrop-blur">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="text-xs text-slate-400">
-          可结算 {{ cart.availableCount || 0 }} 项，未通过校验的商品不会计入总额
+          已选 {{ selectedItems.length }} 件
         </div>
         <div class="flex items-center gap-4">
           <div class="text-right">
             <p class="text-[11px] text-slate-400">合计</p>
-            <p class="font-mono text-xl text-brand-600">{{ formatMoney(cart.currency, cart.totalAmount) }}</p>
+            <p class="font-mono text-xl text-brand-600">{{ formatMoney(cart.currency, selectedTotal) }}</p>
           </div>
           <button
             type="button"
             class="rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 px-6 py-2.5 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!cart.availableCount"
+            :disabled="!selectedItems.length"
             @click="goCheckout"
           >
             去结算
@@ -109,9 +122,31 @@ import { clearCart, fetchCart, removeCartItem, updateCartQuantity } from '../api
 
 const router = useRouter()
 const loading = ref(false)
+const selectedIds = ref([])
 const cart = ref({ items: [], totalAmount: 0, totalQuantity: 0, availableCount: 0, currency: 'CNY' })
 
 const items = computed(() => cart.value.items || [])
+const availableItems = computed(() => items.value.filter((item) => item.available))
+const selectedItems = computed(() => availableItems.value.filter((item) => selectedIds.value.includes(item.id)))
+const selectedTotal = computed(() =>
+  selectedItems.value.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+)
+const allSelected = computed(
+  () => availableItems.value.length > 0 && selectedIds.value.length === availableItems.value.length
+)
+const someSelected = computed(() => selectedIds.value.length > 0 && !allSelected.value)
+
+function toggleItem(item, checked) {
+  if (checked) {
+    if (!selectedIds.value.includes(item.id)) selectedIds.value = [...selectedIds.value, item.id]
+  } else {
+    selectedIds.value = selectedIds.value.filter((id) => id !== item.id)
+  }
+}
+
+function toggleAll(checked) {
+  selectedIds.value = checked ? availableItems.value.map((item) => item.id) : []
+}
 
 function formatMoney(currency, amount) {
   const symbol = currency === 'USD' ? '$' : '¥'
@@ -125,7 +160,11 @@ async function loadCart() {
     return null
   })
   loading.value = false
-  if (data) cart.value = data
+  if (!data) return
+  cart.value = data
+  // 保留仍然存在且可结算的已选商品
+  const validIds = new Set((data.items || []).filter((item) => item.available).map((item) => item.id))
+  selectedIds.value = selectedIds.value.filter((id) => validIds.has(id))
 }
 
 async function handleQuantityChange(item) {
@@ -156,6 +195,7 @@ async function removeItem(item) {
       return false
     })
   if (!ok) return
+  selectedIds.value = selectedIds.value.filter((id) => id !== item.id)
   ElMessage.success('已移出购物车')
   loadCart()
 }
@@ -182,7 +222,8 @@ async function handleClear() {
 }
 
 function goCheckout() {
-  router.push('/checkout')
+  if (!selectedItems.value.length) return
+  router.push({ path: '/checkout', query: { items: selectedItems.value.map((item) => item.id).join(',') } })
 }
 
 onMounted(loadCart)

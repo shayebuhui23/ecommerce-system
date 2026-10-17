@@ -104,7 +104,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { MapPin, ReceiptText } from 'lucide-vue-next'
 import { fetchCart } from '../api/cart'
@@ -112,6 +112,7 @@ import { fetchAddressList } from '../api/address'
 import { createOrder } from '../api/order'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const submitting = ref(false)
 const addresses = ref([])
@@ -149,9 +150,18 @@ async function loadData() {
   loading.value = false
 
   if (cartData) {
-    items.value = (cartData.items || []).filter((item) => item.available)
+    const available = (cartData.items || []).filter((item) => item.available)
+    // 仅结算购物车中勾选的商品；直接访问结算页时默认全部可结算商品
+    const rawItems = typeof route.query.items === 'string' ? route.query.items : ''
+    const selectedIds = rawItems
+      .split(',')
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+    items.value = selectedIds.length
+      ? available.filter((item) => selectedIds.includes(item.id))
+      : available
     currency.value = cartData.currency || 'CNY'
-    totalAmount.value = Number(cartData.totalAmount || 0)
+    totalAmount.value = items.value.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
   }
   addresses.value = addressData || []
   const defaultAddress = addresses.value.find((item) => item.isDefault === 1)

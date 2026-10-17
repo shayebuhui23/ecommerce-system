@@ -20,11 +20,13 @@ public class ProductDetailVO extends ProductVO {
     private String descriptionEn;
     private List<SkuVO> skus = new ArrayList<>();
 
-    public static ProductDetailVO from(Product product, String categoryName) {
+    public static ProductDetailVO from(Product product, String categoryName, String sellerName) {
         ProductDetailVO vo = new ProductDetailVO();
         vo.setId(product.getId());
         vo.setCategoryId(product.getCategoryId());
         vo.setCategoryName(categoryName);
+        vo.setSellerId(product.getSellerId());
+        vo.setSellerName(sellerName);
         vo.setSkuCode(product.getSkuCode());
         vo.setName(product.getName());
         vo.setNameEn(product.getNameEn());

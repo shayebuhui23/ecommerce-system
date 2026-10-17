@@ -26,9 +26,9 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public Result<Void> register(@Valid @RequestBody RegisterDTO dto) {
-        userService.register(dto);
-        return Result.success("注册成功，请登录", null);
+    public Result<String> register(@Valid @RequestBody RegisterDTO dto) {
+        String username = userService.register(dto);
+        return Result.success("注册成功，请登录", username);
     }
 
     @PostMapping("/login")

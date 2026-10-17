@@ -24,9 +24,16 @@ public class StatisticsVO implements Serializable {
     private long orderTotal;
     private long completedOrderCount;
     private BigDecimal completedAmount = BigDecimal.ZERO;
+    /** 已完成订单对应的商品成本合计（CNY） */
+    private BigDecimal costAmount = BigDecimal.ZERO;
+    /** 毛利 = 成交金额 - 成本 */
+    private BigDecimal grossProfit = BigDecimal.ZERO;
+    /** 毛利率（百分比值，如 35.20 表示 35.20%） */
+    private BigDecimal grossMargin = BigDecimal.ZERO;
     private long afterSaleTotal;
     private long afterSalePending;
     private long userTotal;
+    private long merchantTotal;
     private Map<String, Long> orderStatusCounts = new LinkedHashMap<>();
     private List<TopProductVO> topProducts = new ArrayList<>();
 

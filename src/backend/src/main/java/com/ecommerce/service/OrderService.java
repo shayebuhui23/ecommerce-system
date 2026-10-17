@@ -16,9 +16,10 @@ public interface OrderService {
     OrderDetailVO create(OrderCreateDTO dto);
 
     /**
-     * 分页查询订单。客户只能看到自己的订单，商家与管理员可查看全部。
+     * 分页查询订单。客户只能看到自己的订单；商家只能看到包含本店商品的订单；
+     * 管理员可查看全部并可按商家筛选。
      */
-    PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword);
+    PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword, Long sellerId);
 
     OrderDetailVO detail(Long id);
 
@@ -26,4 +27,9 @@ public interface OrderService {
      * 取消订单并恢复库存（仅待付款订单可取消）。
      */
     void cancel(Long id);
+
+    /**
+     * 客户催发货（仅待发货订单，且只能操作自己的订单）。
+     */
+    void urge(Long id);
 }

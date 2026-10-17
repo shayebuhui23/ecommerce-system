@@ -27,6 +27,9 @@ public class Product implements Serializable {
 
     private Long categoryId;
 
+    /** 商家用户 ID（users 表中 STAFF 角色） */
+    private Long sellerId;
+
     private String skuCode;
 
     private String name;
@@ -40,6 +43,9 @@ public class Product implements Serializable {
     private String imageUrl;
 
     private BigDecimal price;
+
+    /** 成本价，仅商家与管理员可见 */
+    private BigDecimal costPrice;
 
     private String currency;
 

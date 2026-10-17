@@ -53,6 +53,14 @@ mysql -u root -p < src/database/seed.sql
 
 > `schema.sql` 可重复执行（会先删除同名表），仅用于开发与课程演示环境。
 
+已有数据库升级到多商家版本时，额外执行一次迁移脚本（新增 `products.seller_id`、第二个商家账号与更多商品分类）：
+
+```powershell
+mysql -u root -p < src/database/migration-multimerchant.sql
+mysql -u root -p < src/database/migration-product-cost.sql
+mysql -u root -p < src/database/migration-username-scheme.sql
+```
+
 ## 二、启动后端
 
 数据库密码**不写入仓库**，通过以下任一方式提供：
@@ -93,32 +101,34 @@ npm run dev
 | 用户名 | 密码 | 角色 | 说明 |
 | ------ | ---- | ---- | ---- |
 | admin | 123456 | 系统管理员 ADMIN | 用户管理、全量数据查询 |
-| staff | 123456 | 商家运营 STAFF | 商品、库存、履约、售后审核 |
-| customer | 123456 | 普通客户 CUSTOMER | 浏览下单、支付、售后申请 |
+| seller000001 | 123456 | 商家运营 STAFF（小林优选） | 本店商品、库存、履约、售后审核 |
+| seller000002 | 123456 | 商家运营 STAFF（云帆优选） | 第二个演示商家，用于验证商家隔离 |
+| user000001 | 123456 | 普通客户 CUSTOMER | 浏览下单、支付、售后申请 |
 
+用户名由系统按角色分配：客户 `user` + 6 位序号、商家 `seller` + 6 位序号、系统管理员固定 `admin`，注册后不可修改。
 也可用邮箱登录（如 `admin@ecommerce.local`）。数据库中仅保存 BCrypt 哈希，不存明文。
 
 ## 五、已实现接口
 
 | 方法 | 路径 | 权限 | 说明 |
 | ---- | ---- | ---- | ---- |
-| POST | `/api/auth/register` | 公开 | 注册普通客户账号（角色固定 CUSTOMER） |
+| POST | `/api/auth/register` | 公开 | 注册账号，`registerType` 为 `CUSTOMER`（默认，客户）或 `MERCHANT`（商家，服务端映射 STAFF）；用户名由系统分配并返回 |
 | POST | `/api/auth/login` | 公开 | 用户名或邮箱 + 密码登录，返回 token 与用户信息 |
 | POST | `/api/auth/logout` | 登录 | 注销当前登录态 |
 | GET | `/api/user/me` | 登录 | 当前用户信息与角色 |
-| PUT | `/api/user/profile` | 登录 | 修改昵称、联系电话与国家或地区 |
-| GET | `/api/user/page` | ADMIN | 分页查询用户，支持关键字搜索 |
+| PUT | `/api/user/profile` | 登录 | 修改邮箱、昵称、联系电话与国家或地区（用户名、账号状态与角色不可改） |
+| GET | `/api/user/page` | ADMIN | 分页查询用户，支持关键字搜索与 `roleCode` 角色筛选 |
 | PUT | `/api/user/status` | ADMIN | 启用 / 禁用账号 |
 | GET | `/api/category/tree` | 登录 | 两级分类树 |
-| POST | `/api/category` | ADMIN / STAFF | 新增分类 |
-| PUT | `/api/category/{id}` | ADMIN / STAFF | 编辑分类 |
-| DELETE | `/api/category/{id}` | ADMIN / STAFF | 删除分类（有子分类或商品时拒绝） |
-| GET | `/api/product/page` | 登录 | 商品分页与搜索；客户仅能看到上架商品 |
-| GET | `/api/product/{id}` | 登录 | 商品详情（含中英文描述与 SKU） |
-| POST | `/api/product` | ADMIN / STAFF | 新增商品（可同时提交 SKU 列表） |
-| PUT | `/api/product/{id}` | ADMIN / STAFF | 编辑商品与 SKU |
-| PUT | `/api/product/{id}/status` | ADMIN / STAFF | 上架 / 下架 |
-| DELETE | `/api/product/{id}` | ADMIN / STAFF | 逻辑删除商品 |
+| POST | `/api/category` | ADMIN | 新增分类 |
+| PUT | `/api/category/{id}` | ADMIN | 编辑分类 |
+| DELETE | `/api/category/{id}` | ADMIN | 删除分类（有子分类或商品时拒绝） |
+| GET | `/api/product/page` | 登录 | 商品分页与搜索；`sellerId` 按商家筛选，`mine=true` 仅看本店；客户仅能看到上架商品；成本价仅管理员与商家可见 |
+| GET | `/api/product/{id}` | 登录 | 商品详情（含中英文描述、商家与 SKU）；成本价仅管理员与商家可见 |
+| POST | `/api/product` | ADMIN / STAFF | 新增商品（管理员需指定 `sellerId`，商家自动归属本店） |
+| PUT | `/api/product/{id}` | ADMIN / STAFF | 编辑商品与 SKU（商家只能操作本店商品） |
+| PUT | `/api/product/{id}/status` | ADMIN / STAFF | 上架 / 下架（商家只能操作本店商品） |
+| DELETE | `/api/product/{id}` | ADMIN / STAFF | 逻辑删除商品（商家只能操作本店商品） |
 | GET | `/api/address/list` | 登录 | 当前用户的收货地址列表 |
 | POST | `/api/address` | 登录 | 新增收货地址（首个自动设为默认） |
 | PUT | `/api/address/{id}` | 登录 | 编辑地址（校验数据归属） |
@@ -130,23 +140,24 @@ npm run dev
 | DELETE | `/api/cart/items/{id}` | 登录 | 移出购物车 |
 | DELETE | `/api/cart/items` | 登录 | 清空购物车 |
 | POST | `/api/order` | 登录 | 从购物车创建订单（后端算价、条件扣库存） |
-| GET | `/api/order/page` | 登录 | 订单分页；客户仅能看到自己的订单 |
+| GET | `/api/order/page` | 登录 | 订单分页；客户看自己的订单，商家看本店商品相关订单，管理员可按 `sellerId` 筛选 |
 | GET | `/api/order/{id}` | 登录 | 订单详情（含商品快照与地址快照） |
 | PUT | `/api/order/{id}/cancel` | 登录 | 取消待付款订单并恢复库存 |
 | POST | `/api/payment/pay` | 登录 | 模拟支付（可模拟成功/失败），成功后订单转待发货 |
 | GET | `/api/payment/order/{orderId}` | 登录 | 查询订单支付记录 |
 | GET | `/api/payment/page` | ADMIN | 管理员分页查询支付记录 |
-| POST | `/api/order/{id}/ship` | ADMIN / STAFF | 发货并录入物流公司与单号 |
+| POST | `/api/order/{id}/ship` | STAFF | 商家发货并录入物流公司与单号 |
+| POST | `/api/order/{id}/urge` | 登录 | 客户催发货（仅待发货订单，写入操作日志） |
 | GET | `/api/order/{id}/shipment` | 登录 | 查询订单物流信息 |
 | POST | `/api/order/{id}/receive` | 登录 | 客户确认收货 |
 | POST | `/api/after-sale` | 登录 | 提交整单退款申请 |
-| PUT | `/api/after-sale/{id}/audit` | ADMIN / STAFF | 审核退款，通过即执行模拟退款 |
+| PUT | `/api/after-sale/{id}/audit` | STAFF | 商家审核退款，通过即执行模拟退款 |
 | GET | `/api/after-sale/order/{orderId}` | 登录 | 查询订单的售后单 |
-| GET | `/api/after-sale/page` | 登录 | 售后单分页（客户仅能看到自己的） |
+| GET | `/api/after-sale/page` | 登录 | 售后单分页；客户看自己的，商家看本店商品的售后，管理员可按 `sellerId` 筛选 |
 | POST | `/api/review` | 登录 | 提交商品评价（仅已完成订单） |
 | GET | `/api/review/product/{productId}` | 登录 | 商品评价列表 |
 | GET | `/api/review/product/{productId}/summary` | 登录 | 商品评分汇总 |
-| GET | `/api/statistics/overview` | ADMIN / STAFF | 经营统计概览 |
+| GET | `/api/statistics/overview` | ADMIN / STAFF | 经营统计概览（含成本、毛利与毛利率）；管理员统计全平台，商家仅统计本店数据 |
 | GET | `/api/exchange-rate/list` | 登录 | 汇率列表 |
 | PUT | `/api/exchange-rate/{id}` | ADMIN | 调整模拟汇率 |
 | GET | `/api/operation-log/page` | ADMIN | 关键操作审计日志 |
@@ -162,6 +173,8 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 ## 六、权限说明
 
 - 登录态由 Sa-Token 校验，除登录/注册外的所有接口默认需要登录。
+- 注册接口只接受 `CUSTOMER` / `MERCHANT` 两种注册类型，商家注册由服务端映射为 STAFF，客户端无法指定角色 ID 提权。
+- 商家运营只能维护本店商品，也只能看到包含本店商品的订单与售后；商品、订单、售后均按 `products.seller_id` 做服务端隔离。
 - 管理员接口使用 `@SaCheckRole("ADMIN")` 在服务端强制校验，前端菜单隐藏不作为权限依据。
 - 每次受保护请求都会校验账号状态，被禁用账号即使持有未过期令牌也无法继续操作。
 - 管理员不能禁用自己的账号。

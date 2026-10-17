@@ -14,9 +14,9 @@ import com.ecommerce.vo.UserInfoVO;
 public interface UserService {
 
     /**
-     * 注册普通客户账号，角色由服务端固定为 CUSTOMER。
+     * 注册账号，用户名由服务端分配并返回。
      */
-    void register(RegisterDTO dto);
+    String register(RegisterDTO dto);
 
     /**
      * 登录并签发令牌。
@@ -34,9 +34,9 @@ public interface UserService {
     UserInfoVO currentUser();
 
     /**
-     * 管理员分页查询用户。
+     * 管理员分页查询用户，可按角色编码筛选。
      */
-    PageResult<UserInfoVO> pageUsers(long pageNum, long pageSize, String keyword);
+    PageResult<UserInfoVO> pageUsers(long pageNum, long pageSize, String keyword, String roleCode);
 
     /**
      * 管理员启用/禁用用户。
@@ -44,7 +44,7 @@ public interface UserService {
     void updateStatus(UserStatusDTO dto);
 
     /**
-     * 修改当前登录用户的昵称、联系电话与所在国家或地区。
+     * 修改当前登录用户的邮箱、昵称、联系电话与所在国家或地区。
      */
     UserInfoVO updateProfile(ProfileDTO dto);
 }

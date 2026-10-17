@@ -39,6 +39,9 @@ public class UserServiceImpl implements UserService {
 
     private static final int STATUS_ENABLED = 1;
 
+    /** 商家注册标识，对应 roles.code = STAFF */
+    private static final String REGISTER_TYPE_MERCHANT = "MERCHANT";
+
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
@@ -51,31 +54,61 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void register(RegisterDTO dto) {
-        // 用户名与邮箱均为唯一约束，先做友好校验，避免直接抛数据库异常
-        if (existsByUsername(dto.getUsername())) {
-            throw new BusinessException(ResultCode.USERNAME_EXISTS);
-        }
+    public String register(RegisterDTO dto) {
         if (existsByEmail(dto.getEmail())) {
             throw new BusinessException(ResultCode.EMAIL_EXISTS);
         }
 
-        Role customerRole = roleMapper.selectByCode(RoleCode.CUSTOMER);
-        if (customerRole == null) {
+        // 注册类型只接受白名单值，未知角色一律按普通客户处理，避免自行提权
+        String roleCode = REGISTER_TYPE_MERCHANT.equalsIgnoreCase(dto.getRegisterType())
+                ? RoleCode.STAFF
+                : RoleCode.CUSTOMER;
+        Role targetRole = roleMapper.selectByCode(roleCode);
+        if (targetRole == null) {
             throw new BusinessException(ResultCode.ROLE_NOT_CONFIGURED);
         }
 
+        // 用户名由系统分配（客户 user + 序号，商家 seller + 序号），注册后不可修改
+        String username = generateUsername(roleCode);
         User user = new User();
-        user.setUsername(dto.getUsername());
-        user.setEmail(dto.getEmail());
+        user.setUsername(username);
+        user.setEmail(dto.getEmail().trim());
         // 密码只保存 BCrypt 哈希，永不落库明文
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setNickname(StringUtils.hasText(dto.getNickname()) ? dto.getNickname() : dto.getUsername());
+        user.setNickname(StringUtils.hasText(dto.getNickname()) ? dto.getNickname() : username);
         user.setCountry(dto.getCountry());
-        user.setRoleId(customerRole.getId());
+        user.setRoleId(targetRole.getId());
         user.setStatus(STATUS_ENABLED);
         userMapper.insert(user);
-        log.info("新用户注册成功：username={}, role={}", user.getUsername(), customerRole.getCode());
+        log.info("新用户注册成功：username={}, role={}", username, targetRole.getCode());
+        return username;
+    }
+
+    /**
+     * 系统分配的用户名：客户 user000001，商家 seller000001，按角色顺序累加。
+     */
+    private String generateUsername(String roleCode) {
+        String prefix = RoleCode.STAFF.equals(roleCode) ? "seller" : "user";
+        long maxSeq = 0;
+        List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
+                .select(User::getUsername)
+                .likeRight(User::getUsername, prefix));
+        for (User user : users) {
+            String value = user.getUsername();
+            if (value == null || !value.startsWith(prefix)) {
+                continue;
+            }
+            String digits = value.substring(prefix.length());
+            if (digits.matches("\\d{6,8}")) {
+                maxSeq = Math.max(maxSeq, Long.parseLong(digits));
+            }
+        }
+        String candidate = prefix + String.format("%06d", maxSeq + 1);
+        while (existsByUsername(candidate)) {
+            maxSeq++;
+            candidate = prefix + String.format("%06d", maxSeq + 1);
+        }
+        return candidate;
     }
 
     @Override
@@ -117,8 +150,15 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public PageResult<UserInfoVO> pageUsers(long pageNum, long pageSize, String keyword) {
+    public PageResult<UserInfoVO> pageUsers(long pageNum, long pageSize, String keyword, String roleCode) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(roleCode)) {
+            Role role = roleMapper.selectByCode(roleCode.trim());
+            if (role == null) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "角色编码不存在");
+            }
+            wrapper.eq(User::getRoleId, role.getId());
+        }
         if (StringUtils.hasText(keyword)) {
             String like = keyword.trim();
             wrapper.and(w -> w.like(User::getUsername, like)
@@ -161,9 +201,17 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
 
+        String email = dto.getEmail().trim();
+        // 邮箱保持唯一，排除当前账号自身；用户名由系统分配后不可修改
+        if (!email.equalsIgnoreCase(user.getEmail()) && existsByEmailExcept(email, userId)) {
+            throw new BusinessException(ResultCode.EMAIL_EXISTS);
+        }
+
         User update = new User();
         update.setId(userId);
-        update.setNickname(dto.getNickname());
+        // 用户名、账号状态与角色不在可编辑范围内
+        update.setEmail(email);
+        update.setNickname(StringUtils.hasText(dto.getNickname()) ? dto.getNickname() : user.getNickname());
         update.setPhone(dto.getPhone());
         update.setCountry(dto.getCountry());
         userMapper.updateById(update);
@@ -177,6 +225,12 @@ public class UserServiceImpl implements UserService {
 
     private boolean existsByEmail(String email) {
         return userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0;
+    }
+
+    private boolean existsByEmailExcept(String email, Long userId) {
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email)
+                .ne(User::getId, userId)) > 0;
     }
 
     private User findByAccount(String account) {

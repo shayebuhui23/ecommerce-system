@@ -92,6 +92,7 @@ CREATE TABLE `categories` (
 CREATE TABLE `products` (
     `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
     `category_id`    BIGINT UNSIGNED NOT NULL COMMENT '分类 ID',
+    `seller_id`      BIGINT UNSIGNED          DEFAULT NULL COMMENT '商家用户 ID（users 表中 STAFF 角色）',
     `sku_code`       VARCHAR(64)     NOT NULL COMMENT '商品级 SKU 编码，全局唯一',
     `name`           VARCHAR(128)    NOT NULL COMMENT '商品名称（中文）',
     `name_en`        VARCHAR(128)             DEFAULT NULL COMMENT '商品名称（英文）',
@@ -99,6 +100,7 @@ CREATE TABLE `products` (
     `description_en` TEXT                     DEFAULT NULL COMMENT '商品描述（英文）',
     `image_url`      VARCHAR(255)             DEFAULT NULL COMMENT '商品主图地址',
     `price`          DECIMAL(12, 2)  NOT NULL COMMENT '售价，基础币种计价',
+    `cost_price`     DECIMAL(12, 2)  NOT NULL DEFAULT 0.00 COMMENT '成本价，仅商家与管理员可见',
     `currency`       CHAR(3)         NOT NULL DEFAULT 'CNY' COMMENT '基础币种',
     `stock`          INT             NOT NULL DEFAULT 0 COMMENT '可用库存',
     `sales_count`    INT             NOT NULL DEFAULT 0 COMMENT '累计销量，用于统计排序',
@@ -109,6 +111,7 @@ CREATE TABLE `products` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_products_sku` (`sku_code`),
     KEY `idx_products_category` (`category_id`),
+    KEY `idx_products_seller` (`seller_id`),
     KEY `idx_products_status` (`status`),
     KEY `idx_products_name` (`name`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='商品基础信息';

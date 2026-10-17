@@ -34,6 +34,11 @@ router.beforeEach(async (to) => {
     }
   }
 
+  // 客户没有工作台，默认进入商品浏览
+  if (to.name === 'Dashboard' && userStore.roleCode === 'CUSTOMER') {
+    return { path: '/shop' }
+  }
+
   const requiredRoles = to.meta.roles
   if (Array.isArray(requiredRoles) && requiredRoles.length && !requiredRoles.includes(userStore.roleCode)) {
     return { path: '/403' }
@@ -43,7 +48,11 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · 跨境订单运营中枢` : '跨境订单运营中枢'
+  const userStore = useUserStore()
+  let title = to.meta.title
+  if (userStore.roleCode === 'STAFF' && to.name === 'Orders') title = '客户订单'
+  if (userStore.roleCode === 'STAFF' && to.name === 'Addresses') title = '发货地址'
+  document.title = title ? `${title} · 跨境订单运营中枢` : '跨境订单运营中枢'
 })
 
 export default router

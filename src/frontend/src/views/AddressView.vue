@@ -2,8 +2,8 @@
   <div class="space-y-4">
     <section class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white p-5">
       <div>
-        <h2 class="text-[15px] font-medium text-slate-800">收货地址</h2>
-        <p class="mt-1 text-xs text-slate-400">按国际地址结构填写，支持国家/地区、省州、城市与邮编；下单时可保存为订单快照</p>
+        <h2 class="text-[15px] font-medium text-slate-800">{{ addressLabel }}</h2>
+        <p class="mt-1 text-xs text-slate-400">{{ addressHint }}</p>
       </div>
       <button
         type="button"
@@ -11,7 +11,7 @@
         @click="openCreate"
       >
         <Plus class="h-3.5 w-3.5" />
-        新增地址
+        新增{{ addressLabel }}
       </button>
     </section>
 
@@ -36,7 +36,7 @@
             v-if="item.isDefault === 1"
             class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-[10px] text-brand-600"
           >
-            默认地址
+            默认{{ addressLabel }}
           </span>
         </div>
 
@@ -65,15 +65,20 @@
         class="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white py-16 lg:col-span-2"
       >
         <MapPin class="h-7 w-7 text-slate-300" />
-        <p class="text-sm text-slate-500">还没有收货地址</p>
-        <p class="text-xs text-slate-400">新增一个地址，后续下单时可以直接选用</p>
+        <p class="text-sm text-slate-500">还没有{{ addressLabel }}</p>
+        <p class="text-xs text-slate-400">{{ isMerchant ? '添加商品发货地址后，可在发货时选用' : '新增一个地址，后续下单时可以直接选用' }}</p>
       </div>
     </section>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑地址' : '新增地址'" width="520px" align-center>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="`${editingId ? '编辑' : '新增'}${addressLabel}`"
+      width="520px"
+      align-center
+    >
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="pt-1">
         <div class="grid grid-cols-2 gap-x-3">
-          <el-form-item label="收货人" prop="consignee">
+          <el-form-item :label="contactLabel" prop="consignee">
             <el-input v-model="form.consignee" maxlength="64" placeholder="Alex Chen" />
           </el-form-item>
           <el-form-item label="联系电话" prop="phone">
@@ -119,7 +124,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MapPin, Plus } from 'lucide-vue-next'
 import {
@@ -129,6 +134,18 @@ import {
   setDefaultAddress,
   updateAddress
 } from '../api/address'
+import { useUserStore } from '../stores/user'
+
+const userStore = useUserStore()
+// 商家的地址用于商品发货，客户用于收货
+const isMerchant = computed(() => userStore.roleCode === 'STAFF')
+const addressLabel = computed(() => (isMerchant.value ? '发货地址' : '收货地址'))
+const contactLabel = computed(() => (isMerchant.value ? '发货联系人' : '收货人'))
+const addressHint = computed(() =>
+  isMerchant.value
+    ? '维护商品发货地址，支持国家/地区、省州、城市与邮编；发货时可直接选用'
+    : '按国际地址结构填写，支持国家/地区、省州、城市与邮编；下单时可保存为订单快照'
+)
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -139,11 +156,11 @@ const formRef = ref()
 
 const form = reactive(createEmptyForm())
 
-const rules = {
-  consignee: [{ required: true, message: '请输入收货人', trigger: 'blur' }],
+const rules = computed(() => ({
+  consignee: [{ required: true, message: `请输入${contactLabel.value}`, trigger: 'blur' }],
   country: [{ required: true, message: '请输入国家或地区', trigger: 'blur' }],
   addressLine: [{ required: true, message: '请输入详细地址', trigger: 'blur' }]
-}
+}))
 
 function createEmptyForm() {
   return {

@@ -48,8 +48,9 @@ public class UserController {
             @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码不能小于 1") long pageNum,
             @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页条数不能小于 1")
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
-            @RequestParam(required = false) String keyword) {
-        return Result.success(userService.pageUsers(pageNum, pageSize, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String roleCode) {
+        return Result.success(userService.pageUsers(pageNum, pageSize, keyword, roleCode));
     }
 
     @PutMapping("/profile")

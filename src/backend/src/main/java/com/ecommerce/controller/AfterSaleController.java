@@ -1,7 +1,6 @@
 package com.ecommerce.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.ecommerce.common.PageResult;
 import com.ecommerce.common.Result;
 import com.ecommerce.common.RoleCode;
@@ -42,7 +41,7 @@ public class AfterSaleController {
         return Result.success("退款申请已提交", afterSaleService.apply(dto));
     }
 
-    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @SaCheckRole(RoleCode.STAFF)
     @PutMapping("/{id}/audit")
     public Result<AfterSaleVO> audit(@PathVariable Long id, @Valid @RequestBody AfterSaleAuditDTO dto) {
         AfterSaleVO vo = afterSaleService.audit(id, dto);
@@ -59,7 +58,8 @@ public class AfterSaleController {
             @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码不能小于 1") long pageNum,
             @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页条数不能小于 1")
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
-            @RequestParam(required = false) String status) {
-        return Result.success(afterSaleService.page(pageNum, pageSize, status));
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long sellerId) {
+        return Result.success(afterSaleService.page(pageNum, pageSize, status, sellerId));
     }
 }

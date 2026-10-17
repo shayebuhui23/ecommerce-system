@@ -1,7 +1,6 @@
 package com.ecommerce.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import cn.dev33.satoken.annotation.SaMode;
 import com.ecommerce.common.Result;
 import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.CategoryDTO;
@@ -39,21 +38,21 @@ public class CategoryController {
         return Result.success(categoryService.tree());
     }
 
-    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @SaCheckRole(RoleCode.ADMIN)
     @PostMapping
     public Result<Void> create(@Valid @RequestBody CategoryDTO dto) {
         categoryService.create(dto);
         return Result.success("分类已创建", null);
     }
 
-    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @SaCheckRole(RoleCode.ADMIN)
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody CategoryDTO dto) {
         categoryService.update(id, dto);
         return Result.success("分类已更新", null);
     }
 
-    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @SaCheckRole(RoleCode.ADMIN)
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         categoryService.delete(id);

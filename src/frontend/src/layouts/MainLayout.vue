@@ -16,7 +16,7 @@
 
       <nav class="flex-1 overflow-y-auto px-3 py-4">
         <div v-for="group in menuGroups" :key="group.name" class="mb-5">
-          <p v-if="!collapsed" class="mb-2 px-3 text-[10px] uppercase tracking-[0.2em] text-white/25">
+          <p v-if="!collapsed" class="mb-2 px-3 text-[13px] font-medium tracking-wide text-white/55">
             {{ group.name }}
           </p>
           <router-link
@@ -37,6 +37,16 @@
             />
             <component :is="iconMap[item.icon] || LayoutDashboard" class="h-[18px] w-[18px] shrink-0" />
             <span v-if="!collapsed" class="truncate">{{ item.title }}</span>
+            <span
+              v-if="!collapsed && item.badge"
+              class="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-medium text-white"
+            >
+              {{ item.badge > 99 ? '99+' : item.badge }}
+            </span>
+            <span
+              v-else-if="collapsed && item.badge"
+              class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500"
+            />
           </router-link>
         </div>
 
@@ -53,11 +63,6 @@
           </div>
         </div>
       </nav>
-
-      <div class="border-t border-white/5 px-4 py-3">
-        <p v-if="!collapsed" class="font-mono text-[10px] uppercase tracking-[0.18em] text-white/25">v1.0 · 骨架阶段</p>
-        <p v-else class="text-center font-mono text-[10px] text-white/25">v1</p>
-      </div>
     </aside>
 
     <div class="flex min-h-screen flex-col transition-[padding] duration-300" :class="collapsed ? 'pl-[76px]' : 'pl-[248px] max-lg:pl-[76px]'">
@@ -113,16 +118,12 @@
           </transition>
         </router-view>
       </main>
-
-      <footer class="px-6 pb-5 text-center text-[11px] text-slate-400">
-        小型电商订单管理系统 · 课程实践项目 · 数据仅用于功能演示
-      </footer>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -148,6 +149,7 @@ import {
 import RoleTag from '../components/RoleTag.vue'
 import { resolveMenus } from '../router/routes'
 import { useUserStore } from '../stores/user'
+import { fetchStatisticsOverview } from '../api/statistics'
 
 const router = useRouter()
 const route = useRoute()
@@ -175,8 +177,38 @@ const iconMap = {
 // 阶段五完成后所有规划中的业务模块均已上线，保留空数组以便后续扩展
 const pendingModules = []
 
+const badgeCounts = ref({ orders: 0, afterSales: 0 })
+
+async function loadBadges() {
+  if (userStore.roleCode !== 'STAFF') return
+  const data = await fetchStatisticsOverview().catch(() => null)
+  if (!data) return
+  badgeCounts.value = {
+    orders: Number(data.orderStatusCounts?.['待发货'] || 0),
+    afterSales: Number(data.afterSalePending || 0)
+  }
+}
+
+onMounted(loadBadges)
+watch(() => route.fullPath, loadBadges)
+
 const menuGroups = computed(() => {
-  const menus = resolveMenus(userStore.roleCode)
+  const menus = resolveMenus(userStore.roleCode).map((item) => ({
+    ...item,
+    badge:
+      item.path === '/admin/orders'
+        ? badgeCounts.value.orders
+        : item.path === '/admin/after-sales'
+          ? badgeCounts.value.afterSales
+          : 0,
+    // 商家的地址用于商品发货、订单页面对应客户订单
+    title:
+      userStore.roleCode === 'STAFF' && item.path === '/addresses'
+        ? '发货地址'
+        : userStore.roleCode === 'STAFF' && item.path === '/orders'
+          ? '客户订单'
+          : item.title
+  }))
   const map = new Map()
   menus.forEach((item) => {
     const key = item.group || '概览'
@@ -186,7 +218,11 @@ const menuGroups = computed(() => {
   return Array.from(map, ([name, items]) => ({ name, items }))
 })
 
-const currentTitle = computed(() => route.meta.title || '工作台')
+const currentTitle = computed(() => {
+  if (userStore.roleCode === 'STAFF' && route.name === 'Addresses') return '发货地址'
+  if (userStore.roleCode === 'STAFF' && route.name === 'Orders') return '客户订单'
+  return route.meta.title || '工作台'
+})
 const currentSubtitle = computed(() => {
   const subtitleMap = {
     Dashboard: '订单履约与经营概览',

@@ -83,26 +83,28 @@
             </div>
           </div>
 
-          <div class="mt-6 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/70 px-4 py-3 text-xs leading-5 text-brand-700">
+          <div v-if="canPurchase" class="mt-6 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/70 px-4 py-3 text-xs leading-5 text-brand-700">
             <Info class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            加入购物车后可前往结算，订单金额与库存会在下单时由后端重新校验。
+            加入购物车后可前往结算。
           </div>
 
-          <div class="mt-4 flex gap-2">
+          <div v-if="canPurchase" class="mt-4 flex gap-2">
             <button
               type="button"
-              class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-3 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex-1 rounded-xl border border-brand-200 bg-white py-3 text-sm text-brand-600 transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="product.stock === 0 || adding"
               @click="handleAddToCart"
             >
               {{ adding ? '正在加入…' : product.stock === 0 ? '暂时缺货' : '加入购物车' }}
             </button>
-            <router-link
-              to="/cart"
-              class="flex items-center justify-center rounded-xl border border-slate-200 px-4 text-sm text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600"
+            <button
+              type="button"
+              class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-3 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="product.stock === 0 || buying"
+              @click="handleBuyNow"
             >
-              去购物车
-            </router-link>
+              {{ buying ? '正在处理…' : '立即购买' }}
+            </button>
           </div>
         </div>
       </template>
@@ -117,11 +119,13 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Info, PackageX } from 'lucide-vue-next'
 import { fetchProductDetail } from '../../../api/product'
-import { addToCart } from '../../../api/cart'
+import { addToCart, fetchCart } from '../../../api/cart'
 import { fetchProductReviews, fetchReviewSummary } from '../../../api/review'
+import { useUserStore } from '../../../stores/user'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -134,9 +138,14 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
 const adding = ref(false)
+const buying = ref(false)
 const product = ref(null)
+// 仅客户参与购物车与下单流程，管理员和商家只查看商品目录
+const canPurchase = computed(() => userStore.roleCode === 'CUSTOMER')
 const reviews = ref([])
 const summary = ref({ reviewCount: 0, averageRating: 0 })
 
@@ -157,6 +166,31 @@ async function handleAddToCart() {
   adding.value = false
   if (!ok) return
   ElMessage.success('已加入购物车')
+}
+
+async function handleBuyNow() {
+  if (!product.value) return
+  buying.value = true
+  const ok = await addToCart({ productId: product.value.id, quantity: 1 })
+    .then(() => true)
+    .catch((error) => {
+      console.error('立即购买失败', error)
+      return false
+    })
+  if (!ok) {
+    buying.value = false
+    return
+  }
+
+  const cart = await fetchCart().catch(() => null)
+  buying.value = false
+  const cartItem = (cart?.items || []).find((item) => item.productId === product.value.id)
+  visible.value = false
+  if (cartItem) {
+    router.push({ path: '/checkout', query: { items: String(cartItem.id) } })
+  } else {
+    router.push('/cart')
+  }
 }
 
 watch(

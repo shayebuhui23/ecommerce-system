@@ -136,6 +136,9 @@ public class AfterSaleServiceImpl implements AfterSaleService {
         if (order == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "关联订单不存在");
         }
+        if (isStaffOnly() && !orderContainsSeller(order.getId(), LoginUserUtil.currentUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权处理其他商家的售后单");
+        }
 
         if (!Boolean.TRUE.equals(dto.getApproved())) {
             AfterSale reject = new AfterSale();
@@ -208,10 +211,17 @@ public class AfterSaleServiceImpl implements AfterSaleService {
     }
 
     @Override
-    public PageResult<AfterSaleVO> page(long pageNum, long pageSize, String status) {
+    public PageResult<AfterSaleVO> page(long pageNum, long pageSize, String status, Long sellerId) {
         LambdaQueryWrapper<AfterSale> wrapper = new LambdaQueryWrapper<>();
         if (!isManager()) {
             wrapper.eq(AfterSale::getUserId, LoginUserUtil.currentUserId());
+        } else {
+            Long scopeSellerId = resolveSellerScope(sellerId);
+            if (scopeSellerId != null) {
+                wrapper.inSql(AfterSale::getOrderId,
+                        "SELECT oi.order_id FROM order_items oi INNER JOIN products p ON p.id = oi.product_id"
+                                + " WHERE p.seller_id = " + scopeSellerId);
+            }
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(AfterSale::getStatus, status.trim());
@@ -253,5 +263,34 @@ public class AfterSaleServiceImpl implements AfterSaleService {
 
     private boolean isManager() {
         return StpUtil.hasRole(RoleCode.ADMIN) || StpUtil.hasRole(RoleCode.STAFF);
+    }
+
+    private boolean isStaffOnly() {
+        return !StpUtil.hasRole(RoleCode.ADMIN) && StpUtil.hasRole(RoleCode.STAFF);
+    }
+
+    /**
+     * 管理员按传入的商家筛选；商家运营固定只看本店售后；客户不附加商家条件。
+     */
+    private Long resolveSellerScope(Long sellerId) {
+        if (StpUtil.hasRole(RoleCode.ADMIN)) {
+            return sellerId;
+        }
+        if (StpUtil.hasRole(RoleCode.STAFF)) {
+            return LoginUserUtil.currentUserId();
+        }
+        return null;
+    }
+
+    private boolean orderContainsSeller(Long orderId, Long sellerId) {
+        List<OrderItem> items = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
+        if (items.isEmpty()) {
+            return false;
+        }
+        List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
+        return productMapper.selectCount(new LambdaQueryWrapper<Product>()
+                .in(Product::getId, productIds)
+                .eq(Product::getSellerId, sellerId)) > 0;
     }
 }

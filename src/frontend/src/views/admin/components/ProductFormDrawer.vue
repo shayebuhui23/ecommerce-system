@@ -7,6 +7,12 @@
   >
     <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-position="top">
       <div class="grid grid-cols-2 gap-x-4">
+        <el-form-item v-if="isAdmin" label="所属商家" prop="sellerId" class="col-span-2">
+          <el-select v-model="form.sellerId" class="w-full" filterable placeholder="请选择商品所属商家">
+            <el-option v-for="item in merchants" :key="item.id" :value="item.id" :label="item.nickname || item.username" />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="所属分类" prop="categoryId" class="col-span-2">
           <el-select v-model="form.categoryId" class="w-full" placeholder="请选择商品分类">
             <el-option v-for="item in categoryOptions" :key="item.id" :value="item.id" :label="item.label" />
@@ -32,6 +38,9 @@
 
         <el-form-item label="售价" prop="price">
           <el-input-number v-model="form.price" :min="0.01" :precision="2" :step="10" class="w-full" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="成本价" prop="costPrice">
+          <el-input-number v-model="form.costPrice" :min="0" :precision="2" :step="10" class="w-full" controls-position="right" />
         </el-form-item>
         <el-form-item label="库存" prop="stock">
           <el-input-number v-model="form.stock" :min="0" :precision="0" class="w-full" controls-position="right" />
@@ -121,6 +130,8 @@ import { ElMessage } from 'element-plus'
 import { Plus } from 'lucide-vue-next'
 import { fetchCategoryTree } from '../../../api/category'
 import { createProduct, fetchProductDetail, updateProduct } from '../../../api/product'
+import { fetchUserPage } from '../../../api/user'
+import { useUserStore } from '../../../stores/user'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -133,24 +144,29 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.roleCode === 'ADMIN')
 const isEdit = computed(() => Boolean(props.productId))
 const loading = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 const categoryOptions = ref([])
+const merchants = ref([])
 
 const form = reactive(createEmptyForm())
 
-const rules = {
+const rules = computed(() => ({
+  sellerId: isAdmin.value ? [{ required: true, message: '请选择所属商家', trigger: 'change' }] : [],
   categoryId: [{ required: true, message: '请选择商品分类', trigger: 'change' }],
   skuCode: [{ required: true, message: '请输入商品 SKU 编码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
   price: [{ required: true, message: '请输入售价', trigger: 'blur' }],
   stock: [{ required: true, message: '请输入库存', trigger: 'blur' }]
-}
+}))
 
 function createEmptyForm() {
   return {
+    sellerId: null,
     categoryId: null,
     skuCode: '',
     name: '',
@@ -159,6 +175,7 @@ function createEmptyForm() {
     descriptionEn: '',
     imageUrl: '',
     price: 0,
+    costPrice: 0,
     currency: 'CNY',
     stock: 0,
     status: 0,
@@ -190,6 +207,15 @@ async function loadCategories() {
   categoryOptions.value = options
 }
 
+async function loadMerchants() {
+  if (!isAdmin.value) return
+  const data = await fetchUserPage({ pageNum: 1, pageSize: 100, roleCode: 'STAFF' }).catch((error) => {
+    console.error('加载商家列表失败', error)
+    return null
+  })
+  if (data) merchants.value = data.records || []
+}
+
 async function loadDetail() {
   if (!props.productId) return
   loading.value = true
@@ -201,6 +227,8 @@ async function loadDetail() {
   if (!data) return
 
   Object.assign(form, {
+    sellerId: data.sellerId || null,
+    costPrice: data.costPrice ?? 0,
     categoryId: data.categoryId,
     skuCode: data.skuCode,
     name: data.name,
@@ -228,7 +256,7 @@ watch(
   async (opened) => {
     if (!opened) return
     resetForm()
-    await loadCategories()
+    await Promise.all([loadCategories(), loadMerchants()])
     await loadDetail()
   }
 )
@@ -245,6 +273,7 @@ async function submit() {
 
   const payload = {
     ...form,
+    sellerId: isAdmin.value ? form.sellerId : undefined,
     nameEn: form.nameEn || null,
     imageUrl: form.imageUrl || null,
     skus: form.skus.map((sku) => ({

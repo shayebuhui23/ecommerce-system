@@ -6,11 +6,16 @@
           <h2 class="text-[15px] font-medium text-slate-800">售后管理</h2>
           <p class="mt-1 text-xs text-slate-400">整单退款：审核通过后订单转已退款；未发货订单自动恢复库存</p>
         </div>
-        <el-select v-model="status" placeholder="全部状态" clearable class="!w-36" @change="handleSearch">
-          <el-option value="PENDING" label="待审核" />
-          <el-option value="REFUNDED" label="已退款" />
-          <el-option value="REJECTED" label="已驳回" />
-        </el-select>
+        <div class="flex items-center gap-2">
+          <el-select v-if="isAdmin" v-model="sellerId" placeholder="全部商家" clearable filterable class="!w-44" @change="handleSearch">
+            <el-option v-for="item in merchants" :key="item.id" :value="item.id" :label="item.nickname || item.username" />
+          </el-select>
+          <el-select v-model="status" placeholder="全部状态" clearable class="!w-36" @change="handleSearch">
+            <el-option value="PENDING" label="待审核" />
+            <el-option value="REFUNDED" label="已退款" />
+            <el-option value="REJECTED" label="已驳回" />
+          </el-select>
+        </div>
       </div>
     </section>
 
@@ -38,14 +43,16 @@
         <el-table-column prop="createdAt" label="申请时间" min-width="160" />
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
+            <!-- 管理员只查看，审核由商家处理 -->
             <button
-              v-if="row.status === 'PENDING'"
+              v-if="!isAdmin && row.status === 'PENDING'"
               type="button"
               class="rounded-lg px-2 py-1 text-xs text-brand-600 transition-colors hover:bg-brand-50"
               @click="openAudit(row)"
             >
               审核
             </button>
+            <span v-else-if="isAdmin && row.status === 'PENDING'" class="text-xs text-amber-600">待商家审核</span>
             <span v-else class="text-xs text-slate-300">已处理</span>
           </template>
         </el-table-column>
@@ -118,15 +125,22 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { auditAfterSale, fetchAfterSalePage } from '../../api/afterSale'
+import { fetchUserPage } from '../../api/user'
+import { useUserStore } from '../../stores/user'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.roleCode === 'ADMIN')
 
 const loading = ref(false)
 const submitting = ref(false)
 const rows = ref([])
 const total = ref(0)
 const status = ref('')
+const sellerId = ref(null)
+const merchants = ref([])
 const auditVisible = ref(false)
 const current = ref(null)
 const auditRemark = ref('')
@@ -151,7 +165,8 @@ async function loadRows() {
   const data = await fetchAfterSalePage({
     pageNum: query.pageNum,
     pageSize: query.pageSize,
-    status: status.value || undefined
+    status: status.value || undefined,
+    sellerId: isAdmin.value ? sellerId.value || undefined : undefined
   }).catch((error) => {
     console.error('加载售后列表失败', error)
     return null
@@ -190,5 +205,17 @@ async function submitAudit(approved) {
   loadRows()
 }
 
-onMounted(loadRows)
+async function loadMerchants() {
+  if (!isAdmin.value) return
+  const data = await fetchUserPage({ pageNum: 1, pageSize: 100, roleCode: 'STAFF' }).catch((error) => {
+    console.error('加载商家列表失败', error)
+    return null
+  })
+  if (data) merchants.value = data.records || []
+}
+
+onMounted(() => {
+  loadMerchants()
+  loadRows()
+})
 </script>

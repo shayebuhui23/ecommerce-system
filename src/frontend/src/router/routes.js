@@ -11,7 +11,7 @@ export const menuRoutes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/DashboardView.vue'),
-    meta: { title: '工作台', icon: 'LayoutDashboard', group: '概览' }
+    meta: { title: '工作台', icon: 'LayoutDashboard', group: '概览', roles: ['ADMIN', 'STAFF'] }
   },
   {
     path: '/profile',
@@ -23,31 +23,31 @@ export const menuRoutes = [
     path: '/shop',
     name: 'Shop',
     component: () => import('../views/shop/ShopView.vue'),
-    meta: { title: '商品浏览', icon: 'Store', group: '商城' }
+    meta: { title: '商品浏览', icon: 'Store', group: '概览' }
   },
   {
     path: '/cart',
     name: 'Cart',
     component: () => import('../views/CartView.vue'),
-    meta: { title: '购物车', icon: 'ShoppingCart', group: '商城' }
+    meta: { title: '购物车', icon: 'ShoppingCart', group: '商城', roles: ['CUSTOMER'] }
   },
   {
     path: '/checkout',
     name: 'Checkout',
     component: () => import('../views/CheckoutView.vue'),
-    meta: { title: '确认订单', icon: 'ReceiptText', group: '商城', hidden: true }
+    meta: { title: '确认订单', icon: 'ReceiptText', group: '商城', hidden: true, roles: ['CUSTOMER'] }
   },
   {
     path: '/orders',
     name: 'Orders',
     component: () => import('../views/orders/OrdersView.vue'),
-    meta: { title: '我的订单', icon: 'ClipboardList', group: '我的' }
+    meta: { title: '我的订单', icon: 'ClipboardList', group: '我的', roles: ['STAFF', 'CUSTOMER'] }
   },
   {
     path: '/addresses',
     name: 'Addresses',
     component: () => import('../views/AddressView.vue'),
-    meta: { title: '收货地址', icon: 'MapPin', group: '我的' }
+    meta: { title: '收货地址', icon: 'MapPin', group: '我的', roles: ['STAFF', 'CUSTOMER'] }
   },
   {
     path: '/admin/products',
@@ -59,7 +59,7 @@ export const menuRoutes = [
     path: '/admin/categories',
     name: 'CategoryManage',
     component: () => import('../views/admin/CategoryManageView.vue'),
-    meta: { title: '分类管理', icon: 'FolderTree', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
+    meta: { title: '分类管理', icon: 'FolderTree', group: '商家管理', roles: ['ADMIN'] }
   },
   {
     path: '/admin/orders',

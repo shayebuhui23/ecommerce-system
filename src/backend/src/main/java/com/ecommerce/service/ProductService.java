@@ -11,9 +11,11 @@ import com.ecommerce.vo.ProductVO;
 public interface ProductService {
 
     /**
-     * 分页查询商品。商家与管理员可查看全部商品，客户只能看到已上架商品。
+     * 分页查询商品。管理员可按商家筛选；商家运营传入 mine=true 时只返回本店商品；
+     * 客户只能看到已上架商品。
      */
-    PageResult<ProductVO> page(long pageNum, long pageSize, String keyword, Long categoryId, Integer status);
+    PageResult<ProductVO> page(long pageNum, long pageSize, String keyword, Long categoryId,
+                              Integer status, Long sellerId, boolean mine);
 
     /**
      * 商品详情，含中英文描述与 SKU 列表。
