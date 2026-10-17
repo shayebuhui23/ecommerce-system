@@ -128,6 +128,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BarChart3,
   ChevronDown,
+  ClipboardList,
   FolderTree,
   LayoutDashboard,
   LogOut,
@@ -137,7 +138,7 @@ import {
   PanelLeftOpen,
   ReceiptText,
   RotateCcw,
-  ShoppingBag,
+  ShoppingCart,
   Store,
   Truck,
   UserRound,
@@ -153,10 +154,9 @@ const userStore = useUserStore()
 
 const collapsed = ref(false)
 
-const iconMap = { LayoutDashboard, UserRound, Users, Store, Package, FolderTree, MapPin }
+const iconMap = { LayoutDashboard, UserRound, Users, Store, Package, FolderTree, MapPin, ShoppingCart, ClipboardList }
 
 const pendingModules = [
-  { title: '购物车与订单', icon: ShoppingBag },
   { title: '支付与履约', icon: ReceiptText },
   { title: '物流跟踪', icon: Truck },
   { title: '售后与退款', icon: RotateCcw },

@@ -3,6 +3,7 @@ import MainLayout from '../layouts/MainLayout.vue'
 /**
  * 业务菜单配置。
  * meta.roles 为空表示三类角色均可见；存在时仅在服务端角色匹配的情况下渲染。
+ * meta.hidden 为 true 的页面不进入侧边菜单（如结算页）。
  * 注意：菜单过滤只是体验优化，真正的权限校验在后端接口上。
  */
 export const menuRoutes = [
@@ -25,6 +26,30 @@ export const menuRoutes = [
     meta: { title: '商品浏览', icon: 'Store', group: '商城' }
   },
   {
+    path: '/cart',
+    name: 'Cart',
+    component: () => import('../views/CartView.vue'),
+    meta: { title: '购物车', icon: 'ShoppingCart', group: '商城' }
+  },
+  {
+    path: '/checkout',
+    name: 'Checkout',
+    component: () => import('../views/CheckoutView.vue'),
+    meta: { title: '确认订单', icon: 'ReceiptText', group: '商城', hidden: true }
+  },
+  {
+    path: '/orders',
+    name: 'Orders',
+    component: () => import('../views/orders/OrdersView.vue'),
+    meta: { title: '我的订单', icon: 'ClipboardList', group: '我的' }
+  },
+  {
+    path: '/addresses',
+    name: 'Addresses',
+    component: () => import('../views/AddressView.vue'),
+    meta: { title: '收货地址', icon: 'MapPin', group: '我的' }
+  },
+  {
     path: '/admin/products',
     name: 'ProductManage',
     component: () => import('../views/admin/ProductManageView.vue'),
@@ -37,10 +62,10 @@ export const menuRoutes = [
     meta: { title: '分类管理', icon: 'FolderTree', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
   },
   {
-    path: '/addresses',
-    name: 'Addresses',
-    component: () => import('../views/AddressView.vue'),
-    meta: { title: '收货地址', icon: 'MapPin', group: '我的' }
+    path: '/admin/orders',
+    name: 'OrderManage',
+    component: () => import('../views/admin/OrderManageView.vue'),
+    meta: { title: '订单管理', icon: 'ClipboardList', group: '商家管理', roles: ['ADMIN', 'STAFF'] }
   },
   {
     path: '/admin/users',
@@ -76,10 +101,11 @@ export const routes = [
 ]
 
 /**
- * 按角色过滤可见菜单。
+ * 按角色过滤可见菜单，并排除隐藏页面。
  */
 export function resolveMenus(roleCode) {
   return menuRoutes
+    .filter((route) => !route.meta?.hidden)
     .filter((route) => !route.meta?.roles || route.meta.roles.includes(roleCode))
     .map((route) => ({
       path: route.path,
