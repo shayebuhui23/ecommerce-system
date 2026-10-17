@@ -187,24 +187,32 @@ cd src/frontend; npm run build
 - 普通客户访问 `/api/user/page` 返回 403。
 - 管理员分页查询返回 3 个演示账号。
 
-## 十、代码托管（头歌平台）
+## 十、代码托管
 
-课程要求源码托管在**头歌平台创建的项目仓库**，仓库地址需填写在报告 4.4 节，评审期间必须可访问。本地仓库已初始化并按功能分批提交，配置远端后即可推送：
+课程要求源码托管在**头歌平台创建的项目仓库**，仓库地址需填写在报告 4.4 节，评审期间必须可访问。
+
+| 平台 | 地址 | 状态 |
+| ---- | ---- | ---- |
+| GitHub（开发主仓库） | https://github.com/shayebuhui23/ecommerce-system | 已推送全部提交 |
+| 头歌（课程要求仓库） | 待补充 | 期末提交前需推送并填写到报告 4.4 节 |
+
+推送命令：
 
 ```powershell
-# 1. 在头歌平台创建项目仓库，复制其 Git 地址（形如 https://git.educoder.net/<账号>/<项目名>.git）
-git remote add origin <头歌仓库地址>
-
-# 2. 确认主分支为 main 并首次推送
-git branch -M main
+# GitHub（开发期主仓库）
 git push -u origin main
+
+# 头歌（第二个远端，按课程要求补推）
+git remote add educoder <头歌仓库地址>
+git push educoder main
 ```
 
 说明：
 
+- 头歌的 Git 地址形式为 `https://git.educoder.net/<用户名>/<项目名>.git`；`code.educoder.net/<用户名>/<项目名>` 只是网页地址，不能用于推送。
 - `node_modules/`、`dist/`、`target/`、`application-local.yml` 已在 `.gitignore` 中排除，仓库中不含依赖、构建产物与数据库密码。
-- 后续每次功能完成后执行 `git add` / `git commit` / `git push`，保持提交记录连续、均衡（过程考核依据）。
-- 若头歌仓库已存在初始 README 等文件，首次推送前先 `git pull --rebase origin main` 合并。
+- 后续每次功能完成后提交并推送，保持提交记录连续、均衡（过程考核依据）。
+- 若远端仓库已存在初始 README 等文件，推送前先 `git pull --rebase origin main --allow-unrelated-histories` 合并。
 
 ## 十一、测试用例与报告
 
