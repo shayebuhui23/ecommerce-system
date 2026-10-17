@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --el-color-primary: #4f46e5;
+  --el-color-primary-light-3: #6366f1;
+  --el-color-primary-light-5: #8a92ff;
+  --el-color-primary-light-7: #c3c8ff;
+  --el-color-primary-light-8: #dfe3ff;
+  --el-color-primary-light-9: #eef0ff;
+  --el-color-primary-dark-2: #4338ca;
+  --el-border-radius-base: 10px;
+  --el-font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --el-text-color-primary: #1f2430;
+  --el-text-color-regular: #5a6478;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: #f5f7fb;
+    color: #1f2430;
+    font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.24);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(90, 100, 120, 0.28);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(22px);
+  }
+
+  .brand-gradient-text {
+    background: linear-gradient(120deg, #a5aeff 0%, #7c8cff 40%, #22d3b6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Element Plus 深色玻璃输入框，用于登录页 */
+.dark-form .el-input__wrapper {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 6px 14px;
+  transition: box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.dark-form .el-input__wrapper:hover {
+  box-shadow: inset 0 0 0 1px rgba(165, 174, 255, 0.45);
+}
+
+.dark-form .el-input__wrapper.is-focus {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(124, 140, 255, 0.85), 0 0 0 3px rgba(79, 70, 229, 0.18);
+}
+
+.dark-form .el-input__inner {
+  color: #ffffff;
+  height: 38px;
+  font-size: 14px;
+}
+
+.dark-form .el-input__inner::placeholder {
+  color: rgba(167, 175, 196, 0.75);
+}
+
+.dark-form .el-form-item__error {
+  color: #ff9c9c;
+  font-size: 12px;
+  padding-top: 4px;
+}
