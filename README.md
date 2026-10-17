@@ -124,6 +124,15 @@ npm run dev
 | PUT | `/api/address/{id}` | 登录 | 编辑地址（校验数据归属） |
 | DELETE | `/api/address/{id}` | 登录 | 删除地址（校验数据归属） |
 | PUT | `/api/address/{id}/default` | 登录 | 设为默认地址 |
+| GET | `/api/cart` | 登录 | 购物车列表，金额与可用性由后端实时计算 |
+| POST | `/api/cart/items` | 登录 | 加入购物车（同一商品累加数量） |
+| PUT | `/api/cart/items/{id}` | 登录 | 修改数量（校验上架状态与库存） |
+| DELETE | `/api/cart/items/{id}` | 登录 | 移出购物车 |
+| DELETE | `/api/cart/items` | 登录 | 清空购物车 |
+| POST | `/api/order` | 登录 | 从购物车创建订单（后端算价、条件扣库存） |
+| GET | `/api/order/page` | 登录 | 订单分页；客户仅能看到自己的订单 |
+| GET | `/api/order/{id}` | 登录 | 订单详情（含商品快照与地址快照） |
+| PUT | `/api/order/{id}/cancel` | 登录 | 取消待付款订单并恢复库存 |
 
 统一响应结构：
 
@@ -144,7 +153,7 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 
 - [x] 阶段一：项目初始化（工程、数据库、统一响应、登录与角色权限）
 - [x] 阶段二：商品与客户功能（分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）
-- [ ] 阶段三：购物车与订单
+- [x] 阶段三：购物车与订单（购物车、下单、库存预扣、订单查询与取消）
 - [ ] 阶段四：支付与履约
 - [ ] 阶段五：售后与扩展功能
 - [ ] 阶段六：测试、修复与交付
@@ -179,6 +188,11 @@ cd src/frontend; npm run build
 | `07-shop.png` | 客户端跨境商品目录与分类筛选 |
 | `08-product-detail.png` | 商品详情抽屉（中英文描述与 SKU 规格） |
 | `09-address.png` | 国际收货地址管理 |
+| `10-cart.png` | 购物车（实时金额与数量调整） |
+| `11-checkout.png` | 确认订单（地址选择与金额明细） |
+| `12-orders.png` | 我的订单与状态筛选 |
+| `13-order-detail.png` | 订单详情与取消入口 |
+| `14-order-manage.png` | 商家订单管理 |
 
 接口层验证结果（curl / PowerShell 实测）：
 
