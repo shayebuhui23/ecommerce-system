@@ -35,3 +35,6 @@ Desktop.ini
 
 # ---------- 浏览器自动化临时目录 ----------
 .playwright-cli/
+
+# ---------- IDE 助手数据 ----------
+.codebuddy/
