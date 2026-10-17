@@ -139,6 +139,17 @@ npm run dev
 | POST | `/api/order/{id}/ship` | ADMIN / STAFF | 发货并录入物流公司与单号 |
 | GET | `/api/order/{id}/shipment` | 登录 | 查询订单物流信息 |
 | POST | `/api/order/{id}/receive` | 登录 | 客户确认收货 |
+| POST | `/api/after-sale` | 登录 | 提交整单退款申请 |
+| PUT | `/api/after-sale/{id}/audit` | ADMIN / STAFF | 审核退款，通过即执行模拟退款 |
+| GET | `/api/after-sale/order/{orderId}` | 登录 | 查询订单的售后单 |
+| GET | `/api/after-sale/page` | 登录 | 售后单分页（客户仅能看到自己的） |
+| POST | `/api/review` | 登录 | 提交商品评价（仅已完成订单） |
+| GET | `/api/review/product/{productId}` | 登录 | 商品评价列表 |
+| GET | `/api/review/product/{productId}/summary` | 登录 | 商品评分汇总 |
+| GET | `/api/statistics/overview` | ADMIN / STAFF | 经营统计概览 |
+| GET | `/api/exchange-rate/list` | 登录 | 汇率列表 |
+| PUT | `/api/exchange-rate/{id}` | ADMIN | 调整模拟汇率 |
+| GET | `/api/operation-log/page` | ADMIN | 关键操作审计日志 |
 
 统一响应结构：
 
@@ -155,18 +166,29 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 - 每次受保护请求都会校验账号状态，被禁用账号即使持有未过期令牌也无法继续操作。
 - 管理员不能禁用自己的账号。
 
-## 七、开发进度
+## 七、币种与金额规则
+
+| 规则 | 说明 |
+| ---- | ---- |
+| 基础币种 | 商品价格统一以 **CNY** 记录，商品表 `currency` 字段标记 |
+| 订单币种 | 下单时可选 CNY 或 USD，默认 CNY |
+| 汇率来源 | 管理员在「汇率管理」维护模拟汇率，不接实时外汇接口 |
+| 汇率快照 | 下单时把当时的汇率写入订单 `exchange_rate`，后续调价不影响历史订单 |
+| 金额计算 | 商品金额与运费先按 CNY 计算并判断是否包邮（满 500 免运费），再按汇率换算为订单币种 |
+| 统计口径 | 统计金额使用订单的 `base_amount`（下单时折算的 CNY 金额），不同币种不会直接相加 |
+
+## 八、开发进度
 
 - [x] 阶段一：项目初始化（工程、数据库、统一响应、登录与角色权限）
 - [x] 阶段二：商品与客户功能（分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）
 - [x] 阶段三：购物车与订单（购物车、下单、库存预扣、订单查询与取消）
 - [x] 阶段四：支付与履约（模拟支付、发货、物流跟踪、确认收货）
-- [ ] 阶段五：售后与扩展功能
+- [x] 阶段五：售后与扩展功能（退款审核、商品评价、币种汇率、经营统计、操作审计）
 - [ ] 阶段六：测试、修复与交付
 
 详细计划见 `docs/plan.md`，需求见 `docs/初始规划.md`。
 
-## 八、常用命令
+## 九、常用命令
 
 ```powershell
 # 后端编译
@@ -179,7 +201,7 @@ cd src/backend; mvn test
 cd src/frontend; npm run build
 ```
 
-## 九、验证截图
+## 十、验证截图
 
 骨架阶段已在浏览器中完成登录、角色菜单、越权拦截与退出流程验证，截图见 `docs/screenshots/`：
 
@@ -202,6 +224,11 @@ cd src/frontend; npm run build
 | `15-payment.png` | 模拟支付弹窗（含失败分支演示） |
 | `16-ship.png` | 商家发货弹窗（物流公司与单号） |
 | `17-shipment.png` | 客户查看物流信息与确认收货 |
+| `18-refund.png` | 订单退款申请与售后状态 |
+| `19-after-sale-audit.png` | 商家售后审核（通过/驳回） |
+| `20-statistics.png` | 经营统计看板 |
+| `21-exchange-rate.png` | 汇率管理 |
+| `22-operation-log.png` | 操作审计日志 |
 
 接口层验证结果（curl / PowerShell 实测）：
 
@@ -210,7 +237,7 @@ cd src/frontend; npm run build
 - 普通客户访问 `/api/user/page` 返回 403。
 - 管理员分页查询返回 3 个演示账号。
 
-## 十、代码托管
+## 十一、代码托管
 
 课程要求源码托管在**头歌平台创建的项目仓库**，仓库地址需填写在报告 4.4 节，评审期间必须可访问。
 
@@ -237,7 +264,7 @@ git push educoder main
 - 后续每次功能完成后提交并推送，保持提交记录连续、均衡（过程考核依据）。
 - 若远端仓库已存在初始 README 等文件，推送前先 `git pull --rebase origin main --allow-unrelated-histories` 合并。
 
-## 十一、测试用例与报告
+## 十二、测试用例与报告
 
 - 测试用例文档：`test/test-cases/`
 - 接口冒烟脚本：`test/api/smoke.ps1`（本机 PowerShell 直接执行，覆盖登录、401、403 与商品可见性）
