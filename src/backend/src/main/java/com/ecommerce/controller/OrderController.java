@@ -1,11 +1,17 @@
 package com.ecommerce.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.annotation.SaMode;
 import com.ecommerce.common.PageResult;
 import com.ecommerce.common.Result;
+import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.OrderCreateDTO;
+import com.ecommerce.dto.ShipDTO;
 import com.ecommerce.service.OrderService;
+import com.ecommerce.service.ShipmentService;
 import com.ecommerce.vo.OrderDetailVO;
 import com.ecommerce.vo.OrderVO;
+import com.ecommerce.vo.ShipmentVO;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,7 +29,7 @@ import javax.validation.constraints.Min;
 /**
  * 订单接口。
  * <p>
- * 客户只能查询与操作自己的订单；商家与管理员可查询全部订单（用于履约）。
+ * 客户只能查询与操作自己的订单；商家与管理员可查询全部订单并执行发货。
  */
 @Validated
 @RestController
@@ -31,9 +37,11 @@ import javax.validation.constraints.Min;
 public class OrderController {
 
     private final OrderService orderService;
+    private final ShipmentService shipmentService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, ShipmentService shipmentService) {
         this.orderService = orderService;
+        this.shipmentService = shipmentService;
     }
 
     @PostMapping
@@ -60,5 +68,31 @@ public class OrderController {
     public Result<Void> cancel(@PathVariable Long id) {
         orderService.cancel(id);
         return Result.success("订单已取消", null);
+    }
+
+    /**
+     * 商家发货。
+     */
+    @SaCheckRole(value = {RoleCode.ADMIN, RoleCode.STAFF}, mode = SaMode.OR)
+    @PostMapping("/{id}/ship")
+    public Result<ShipmentVO> ship(@PathVariable Long id, @Valid @RequestBody ShipDTO dto) {
+        return Result.success("发货成功", shipmentService.ship(id, dto));
+    }
+
+    /**
+     * 查询物流信息（客户查自己的，商家与管理员可查全部）。
+     */
+    @GetMapping("/{id}/shipment")
+    public Result<ShipmentVO> shipment(@PathVariable Long id) {
+        return Result.success(shipmentService.queryByOrder(id));
+    }
+
+    /**
+     * 客户确认收货。
+     */
+    @PostMapping("/{id}/receive")
+    public Result<Void> receive(@PathVariable Long id) {
+        shipmentService.receive(id);
+        return Result.success("已确认收货", null);
     }
 }

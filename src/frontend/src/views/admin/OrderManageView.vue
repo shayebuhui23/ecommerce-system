@@ -61,15 +61,25 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" min-width="160" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <button
-              type="button"
-              class="rounded-lg px-2 py-1 text-xs text-brand-600 transition-colors hover:bg-brand-50"
-              @click="openDetail(row.id)"
-            >
-              查看详情
-            </button>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="rounded-lg px-2 py-1 text-xs text-brand-600 transition-colors hover:bg-brand-50"
+                @click="openDetail(row.id)"
+              >
+                详情
+              </button>
+              <button
+                v-if="row.status === 'PENDING_SHIPMENT'"
+                type="button"
+                class="rounded-lg px-2 py-1 text-xs text-emerald-600 transition-colors hover:bg-emerald-50"
+                @click="openShip(row)"
+              >
+                发货
+              </button>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -93,6 +103,7 @@
     </section>
 
     <OrderDetailDrawer v-model="detailVisible" :order-id="detailId" @updated="loadOrders" />
+    <ShipDialog v-model="shipVisible" :order="shippingOrder" @shipped="loadOrders" />
   </div>
 </template>
 
@@ -101,6 +112,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { Search } from 'lucide-vue-next'
 import { fetchOrderPage } from '../../api/order'
 import OrderDetailDrawer from '../orders/components/OrderDetailDrawer.vue'
+import ShipDialog from './components/ShipDialog.vue'
 
 const loading = ref(false)
 const rows = ref([])
@@ -109,6 +121,8 @@ const keyword = ref('')
 const status = ref('')
 const detailVisible = ref(false)
 const detailId = ref(null)
+const shipVisible = ref(false)
+const shippingOrder = ref(null)
 const query = reactive({ pageNum: 1, pageSize: 10 })
 
 const statusOptions = [
@@ -162,6 +176,11 @@ function handleSearch() {
 function openDetail(id) {
   detailId.value = id
   detailVisible.value = true
+}
+
+function openShip(row) {
+  shippingOrder.value = row
+  shipVisible.value = true
 }
 
 onMounted(loadOrders)

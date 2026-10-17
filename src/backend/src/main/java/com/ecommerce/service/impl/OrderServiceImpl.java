@@ -16,6 +16,7 @@ import com.ecommerce.entity.InventoryLog;
 import com.ecommerce.entity.Order;
 import com.ecommerce.entity.OrderItem;
 import com.ecommerce.entity.Product;
+import com.ecommerce.entity.Shipment;
 import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.AddressMapper;
 import com.ecommerce.mapper.CartItemMapper;
@@ -24,11 +25,13 @@ import com.ecommerce.mapper.InventoryLogMapper;
 import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.ProductMapper;
+import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.OrderService;
 import com.ecommerce.vo.OrderDetailVO;
 import com.ecommerce.vo.OrderItemVO;
 import com.ecommerce.vo.OrderVO;
+import com.ecommerce.vo.ShipmentVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,6 +73,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductMapper productMapper;
     private final AddressMapper addressMapper;
     private final InventoryLogMapper inventoryLogMapper;
+    private final ShipmentMapper shipmentMapper;
 
     public OrderServiceImpl(OrderMapper orderMapper,
                             OrderItemMapper orderItemMapper,
@@ -77,7 +81,8 @@ public class OrderServiceImpl implements OrderService {
                             CartItemMapper cartItemMapper,
                             ProductMapper productMapper,
                             AddressMapper addressMapper,
-                            InventoryLogMapper inventoryLogMapper) {
+                            InventoryLogMapper inventoryLogMapper,
+                            ShipmentMapper shipmentMapper) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.cartMapper = cartMapper;
@@ -85,6 +90,7 @@ public class OrderServiceImpl implements OrderService {
         this.productMapper = productMapper;
         this.addressMapper = addressMapper;
         this.inventoryLogMapper = inventoryLogMapper;
+        this.shipmentMapper = shipmentMapper;
     }
 
     @Override
@@ -192,6 +198,12 @@ public class OrderServiceImpl implements OrderService {
                 new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
         vo.setItems(items.stream().map(OrderItemVO::from).collect(Collectors.toList()));
         vo.setItemCount(items.stream().mapToInt(OrderItem::getQuantity).sum());
+
+        List<Shipment> shipments = shipmentMapper.selectList(
+                new LambdaQueryWrapper<Shipment>().eq(Shipment::getOrderId, order.getId()));
+        if (!shipments.isEmpty()) {
+            vo.setShipment(ShipmentVO.from(shipments.get(0)));
+        }
         return vo;
     }
 

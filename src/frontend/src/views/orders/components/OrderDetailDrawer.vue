@@ -56,6 +56,25 @@
           </div>
         </div>
 
+        <div v-if="order.shipment" class="mt-5 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">物流信息</p>
+            <span class="rounded-full border border-brand-200 bg-white px-2.5 py-0.5 text-[10px] text-brand-600">
+              {{ order.shipment.statusText }}
+            </span>
+          </div>
+          <p class="mt-2 text-sm text-slate-800">{{ order.shipment.shippingCompany }}</p>
+          <p class="mt-0.5 font-mono text-xs text-slate-500">{{ order.shipment.trackingNo }}</p>
+          <p class="mt-2 text-[11px] text-slate-500">
+            {{ order.shipment.fromCountry }} → {{ order.shipment.toCountry }}
+            <span class="mx-1">·</span>
+            {{ shippingMethodText }}
+          </p>
+          <p v-if="order.shipment.estimatedDelivery" class="mt-1 text-[11px] text-slate-400">
+            预计送达：{{ order.shipment.estimatedDelivery }}
+          </p>
+        </div>
+
         <div class="mt-5 space-y-2 text-[11px] text-slate-400">
           <p>创建时间：{{ order.createdAt }}</p>
           <p v-if="order.paidAt">支付时间：{{ order.paidAt }}</p>
@@ -64,14 +83,34 @@
           <p v-if="order.cancelledAt">取消时间：{{ order.cancelledAt }}</p>
         </div>
 
-        <button
-          v-if="showCancel"
-          type="button"
-          class="mt-5 w-full rounded-xl border border-rose-200 py-2.5 text-sm text-rose-500 transition-colors hover:bg-rose-50"
-          @click="handleCancel"
-        >
-          取消订单
-        </button>
+        <div class="mt-5 flex gap-2">
+          <button
+            v-if="showPay"
+            type="button"
+            class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-2.5 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0"
+            @click="payVisible = true"
+          >
+            去支付
+          </button>
+          <button
+            v-if="showReceive"
+            type="button"
+            class="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-2.5 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+            @click="handleReceive"
+          >
+            确认收货
+          </button>
+          <button
+            v-if="showCancel"
+            type="button"
+            class="flex-1 rounded-xl border border-rose-200 py-2.5 text-sm text-rose-500 transition-colors hover:bg-rose-50"
+            @click="handleCancel"
+          >
+            取消订单
+          </button>
+        </div>
+
+        <PayDialog v-model="payVisible" :order="order" @paid="handlePaid" />
       </template>
 
       <div v-else-if="!loading" class="py-20 text-center text-sm text-slate-400">订单信息加载失败</div>
@@ -83,6 +122,8 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cancelOrder, fetchOrderDetail } from '../../../api/order'
+import { receiveOrder } from '../../../api/shipment'
+import PayDialog from './PayDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -106,6 +147,15 @@ const fullAddress = computed(() => {
 })
 
 const showCancel = computed(() => order.value?.status === 'PENDING_PAYMENT')
+const showPay = computed(() => order.value?.status === 'PENDING_PAYMENT')
+const showReceive = computed(() => order.value?.status === 'SHIPPED')
+
+const shippingMethodText = computed(() => {
+  const map = { EXPRESS: '国际快递', AIR: '空运', SEA: '海运' }
+  return map[order.value?.shipment?.shippingMethod] || '国际快递'
+})
+
+const payVisible = ref(false)
 
 function money(amount) {
   const symbol = order.value?.currency === 'USD' ? '$' : '¥'
@@ -154,6 +204,34 @@ async function handleCancel() {
   if (!ok) return
 
   ElMessage.success('订单已取消')
+  await loadDetail()
+  emit('updated')
+}
+
+async function handlePaid() {
+  await loadDetail()
+  emit('updated')
+}
+
+async function handleReceive() {
+  const confirmed = await ElMessageBox.confirm('确认已经收到商品？确认后订单将标记为已完成。', '确认收货', {
+    confirmButtonText: '确认收货',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => true)
+    .catch(() => false)
+  if (!confirmed) return
+
+  const ok = await receiveOrder(order.value.id)
+    .then(() => true)
+    .catch((error) => {
+      console.error('确认收货失败', error)
+      return false
+    })
+  if (!ok) return
+
+  ElMessage.success('已确认收货')
   await loadDetail()
   emit('updated')
 }
