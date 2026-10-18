@@ -58,18 +58,16 @@
         </el-table-column>
         <el-table-column label="状态" min-width="100">
           <template #default="{ row }">
-            <span class="rounded-full border px-2.5 py-1 text-[11px]" :class="statusClass(row.status)">
-              {{ row.statusText }}
-            </span>
+            <StatusTag :text="row.statusText" :tone="statusTone(row.status)" />
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" min-width="160" />
-        <el-table-column label="操作" :width="isAdmin ? 90 : 150" fixed="right">
+        <el-table-column label="操作" :width="isAdmin ? 100 : 160" fixed="right" align="left" header-align="left">
           <template #default="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="-ml-2 flex h-7 items-center gap-1">
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs text-brand-600 transition-colors hover:bg-brand-50"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-brand-600 transition-colors hover:bg-brand-50"
                 @click="openDetail(row.id)"
               >
                 详情
@@ -78,7 +76,7 @@
               <button
                 v-if="!isAdmin && row.status === 'PENDING_SHIPMENT'"
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs text-emerald-600 transition-colors hover:bg-emerald-50"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-emerald-600 transition-colors hover:bg-emerald-50"
                 @click="openShip(row)"
               >
                 发货
@@ -117,6 +115,7 @@ import { Search } from 'lucide-vue-next'
 import { fetchOrderPage } from '../../api/order'
 import { fetchUserPage } from '../../api/user'
 import { useUserStore } from '../../stores/user'
+import StatusTag from '../../components/StatusTag.vue'
 import OrderDetailDrawer from '../orders/components/OrderDetailDrawer.vue'
 import ShipDialog from './components/ShipDialog.vue'
 
@@ -149,17 +148,17 @@ function money(currency, amount) {
   return `${symbol}${Number(amount || 0).toFixed(2)}`
 }
 
-function statusClass(code) {
+function statusTone(code) {
   const map = {
-    PENDING_PAYMENT: 'border-amber-200 bg-amber-50 text-amber-700',
-    PENDING_SHIPMENT: 'border-blue-200 bg-blue-50 text-blue-700',
-    SHIPPED: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    COMPLETED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    CANCELLED: 'border-slate-200 bg-slate-50 text-slate-500',
-    AFTER_SALES: 'border-orange-200 bg-orange-50 text-orange-700',
-    REFUNDED: 'border-rose-200 bg-rose-50 text-rose-700'
+    PENDING_PAYMENT: 'amber',
+    PENDING_SHIPMENT: 'blue',
+    SHIPPED: 'sky',
+    COMPLETED: 'emerald',
+    CANCELLED: 'slate',
+    AFTER_SALES: 'orange',
+    REFUNDED: 'rose'
   }
-  return map[code] || 'border-slate-200 bg-slate-50 text-slate-500'
+  return map[code] || 'slate'
 }
 
 async function loadOrders() {

@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" size="540px" :with-header="false">
+  <el-drawer v-model="visible" size="540px" :with-header="false" append-to-body>
     <div v-loading="loading" class="pb-4">
       <template v-if="product">
         <div class="relative h-60 overflow-hidden rounded-2xl bg-slate-100">
@@ -24,6 +24,13 @@
         <div class="mt-5">
           <h2 class="text-xl font-semibold text-slate-800">{{ product.name }}</h2>
           <p class="mt-1 text-sm text-slate-400">{{ product.nameEn }}</p>
+          <p
+            v-if="product.sellerName"
+            class="mt-2 inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] text-brand-600"
+          >
+            <Store class="h-3 w-3" />
+            商家：{{ product.sellerName }}
+          </p>
 
           <div class="mt-4 flex items-end justify-between rounded-2xl bg-slate-50 px-4 py-3">
             <div>
@@ -121,7 +128,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Info, PackageX } from 'lucide-vue-next'
+import { Info, PackageX, Store } from 'lucide-vue-next'
 import { fetchProductDetail } from '../../../api/product'
 import { addToCart, fetchCart } from '../../../api/cart'
 import { fetchProductReviews, fetchReviewSummary } from '../../../api/review'
@@ -187,7 +194,7 @@ async function handleBuyNow() {
   const cartItem = (cart?.items || []).find((item) => item.productId === product.value.id)
   visible.value = false
   if (cartItem) {
-    router.push({ path: '/checkout', query: { items: String(cartItem.id) } })
+    router.push({ path: '/checkout', query: { items: String(cartItem.id), buyNow: '1' } })
   } else {
     router.push('/cart')
   }

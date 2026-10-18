@@ -99,17 +99,20 @@
         <p class="mt-2 text-center text-[10px] text-slate-400">提交后订单进入待付款状态，可在订单列表取消</p>
       </section>
     </div>
+
+    <PayDialog v-model="payVisible" :order="payingOrder" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { MapPin, ReceiptText } from 'lucide-vue-next'
 import { fetchCart } from '../api/cart'
 import { fetchAddressList } from '../api/address'
 import { createOrder } from '../api/order'
+import PayDialog from './orders/components/PayDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -120,6 +123,8 @@ const selectedAddressId = ref(null)
 const items = ref([])
 const currency = ref('CNY')
 const totalAmount = ref(0)
+const payVisible = ref(false)
+const payingOrder = ref(null)
 
 const freightAmount = computed(() => (totalAmount.value >= 500 ? 0 : 20))
 const payAmount = computed(() => Number(totalAmount.value) + freightAmount.value)
@@ -185,8 +190,22 @@ async function submit() {
   if (!data) return
 
   ElMessage.success(`订单已创建：${data.orderNo}`)
+  if (route.query.buyNow === '1') {
+    // 立即购买：创建订单后直接进入支付
+    payingOrder.value = data
+    payVisible.value = true
+    return
+  }
   router.replace('/orders')
 }
+
+// 支付弹窗关闭后（无论成功与否）进入订单列表，避免重复提交订单
+watch(payVisible, (visible) => {
+  if (!visible && payingOrder.value) {
+    payingOrder.value = null
+    router.replace('/orders')
+  }
+})
 
 onMounted(loadData)
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" size="540px" :with-header="false">
+  <el-drawer v-model="visible" size="540px" :with-header="false" append-to-body>
     <div v-loading="loading" class="pb-4">
       <template v-if="order">
         <div class="flex items-start justify-between">
@@ -7,9 +7,7 @@
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">订单编号</p>
             <p class="mt-1 font-mono text-sm text-slate-800">{{ order.orderNo }}</p>
           </div>
-          <span class="rounded-full border px-3 py-1 text-[11px]" :class="statusClass(order.status)">
-            {{ order.statusText }}
-          </span>
+          <StatusTag :text="displayStatusText" :tone="statusTone(order.status)" size="md" />
         </div>
 
         <div class="mt-5 rounded-2xl bg-slate-50 p-4">
@@ -21,9 +19,17 @@
           <p class="mt-1 text-xs leading-5 text-slate-500">{{ fullAddress }}</p>
         </div>
 
-        <div v-if="sellerNames.length" class="mt-3 rounded-2xl bg-slate-50 p-4">
+        <div
+          v-for="merchant in merchantList"
+          :key="merchant.sellerId || merchant.sellerName"
+          class="mt-3 rounded-2xl bg-slate-50 p-4"
+        >
           <p class="text-[11px] text-slate-400">商家信息</p>
-          <p class="mt-1 text-sm text-slate-800">{{ sellerNames.join('、') }}</p>
+          <p class="mt-1 text-sm text-slate-800">
+            {{ merchant.sellerName || '—' }}
+            <span v-if="merchant.phone" class="ml-2 font-mono text-[11px] text-slate-400">{{ merchant.phone }}</span>
+          </p>
+          <p class="mt-1 text-xs leading-5 text-slate-500">{{ merchantAddress(merchant) }}</p>
         </div>
 
         <div class="mt-5">
@@ -78,19 +84,29 @@
         <div v-if="afterSale" class="mt-4 rounded-2xl border px-4 py-3" :class="afterSaleClass">
           <div class="flex items-center justify-between">
             <p class="text-[11px] text-slate-400">售后申请 · {{ afterSale.afterSaleNo }}</p>
-            <span class="text-[11px]">{{ afterSale.statusText }}</span>
+            <StatusTag :text="afterSale.statusText" :tone="afterSaleTone" size="xs" />
           </div>
+          <p class="mt-1 text-xs">类型：{{ afterSale.typeText || '仅退款' }}</p>
           <p class="mt-1 text-xs">原因：{{ afterSale.reason }}</p>
+          <p v-if="afterSale.status === 'WAITING_RECEIPT'" class="mt-1 text-[11px] opacity-80">等待商家确认收货后完成退款</p>
           <p v-if="afterSale.auditRemark" class="mt-1 text-[11px] opacity-80">商家意见：{{ afterSale.auditRemark }}</p>
           <p v-if="afterSale.refundedAt" class="mt-1 text-[11px] opacity-80">退款时间：{{ afterSale.refundedAt }}</p>
+          <button
+            v-if="isCustomer && afterSale.status === 'WAITING_RETURN'"
+            type="button"
+            class="mt-2 rounded-lg border border-current px-3 py-1 text-[11px] transition-colors hover:bg-white/50"
+            @click="returnVisible = true"
+          >
+            填写退货物流
+          </button>
         </div>
 
         <div v-if="order.shipment" class="mt-4 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
           <div class="flex items-center justify-between">
-            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">物流信息</p>
-            <span class="rounded-full border border-brand-200 bg-white px-2.5 py-0.5 text-[10px] text-brand-600">
-              {{ order.shipment.statusText }}
-            </span>
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+              {{ afterSale?.returnTrackingNo ? '发货物流' : '物流信息' }}
+            </p>
+            <StatusTag :text="order.shipment.statusText" tone="brand" size="xs" />
           </div>
           <p class="mt-2 text-sm text-slate-800">{{ order.shipment.shippingCompany }}</p>
           <p class="mt-0.5 font-mono text-xs text-slate-500">{{ order.shipment.trackingNo }}</p>
@@ -101,6 +117,21 @@
           </p>
           <p v-if="order.shipment.estimatedDelivery" class="mt-1 text-[11px] text-slate-400">
             预计送达：{{ order.shipment.estimatedDelivery }}
+          </p>
+        </div>
+
+        <div v-if="afterSale?.returnTrackingNo" class="mt-4 rounded-2xl border border-sky-100 bg-sky-50/50 p-4">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">退货物流</p>
+            <StatusTag :text="afterSale.statusText" :tone="afterSaleTone" size="xs" />
+          </div>
+          <p class="mt-2 text-sm text-slate-800">{{ afterSale.returnShippingCompany }}</p>
+          <p class="mt-0.5 font-mono text-xs text-slate-500">{{ afterSale.returnTrackingNo }}</p>
+          <p v-if="afterSale.returnShippedAt" class="mt-1 text-[11px] text-slate-400">
+            买家寄回：{{ afterSale.returnShippedAt }}
+          </p>
+          <p v-if="afterSale.returnReceivedAt" class="mt-1 text-[11px] text-slate-400">
+            商家收货：{{ afterSale.returnReceivedAt }}
           </p>
         </div>
 
@@ -186,9 +217,11 @@
           :title="afterSaleTitle"
           :preset-reason="afterSalePreset"
           @applied="handleApplied"
+          @received="handleReceived"
         />
         <ReviewDialog v-model="reviewVisible" :item="reviewItem" @reviewed="handleReviewed" />
         <ShipDialog v-model="shipVisible" :order="order" @shipped="handleShipped" />
+        <ReturnShipmentDialog v-model="returnVisible" :after-sale="afterSale" @submitted="handleReturnSubmitted" />
       </template>
 
       <div v-else-if="!loading" class="py-20 text-center text-sm text-slate-400">订单信息加载失败</div>
@@ -203,10 +236,12 @@ import { cancelOrder, fetchOrderDetail, urgeOrder } from '../../../api/order'
 import { receiveOrder } from '../../../api/shipment'
 import { fetchAfterSaleByOrder } from '../../../api/afterSale'
 import { useUserStore } from '../../../stores/user'
+import StatusTag from '../../../components/StatusTag.vue'
 import PayDialog from './PayDialog.vue'
 import AfterSaleDialog from './AfterSaleDialog.vue'
 import ReviewDialog from './ReviewDialog.vue'
 import ShipDialog from '../../admin/components/ShipDialog.vue'
+import ReturnShipmentDialog from './ReturnShipmentDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -230,6 +265,7 @@ const payVisible = ref(false)
 const refundVisible = ref(false)
 const reviewVisible = ref(false)
 const shipVisible = ref(false)
+const returnVisible = ref(false)
 const reviewItem = ref(null)
 const afterSaleTitle = ref('申请售后')
 const afterSalePreset = ref('')
@@ -241,10 +277,18 @@ const fullAddress = computed(() => {
     .join(' · ')
 })
 
-const sellerNames = computed(() => {
-  const names = (order.value?.items || []).map((item) => item.sellerName).filter(Boolean)
-  return [...new Set(names)]
+const merchantList = computed(() => {
+  if (order.value?.merchants?.length) return order.value.merchants
+  // 兼容旧数据：仅能从商品明细拿到商家名称
+  const names = [...new Set((order.value?.items || []).map((item) => item.sellerName).filter(Boolean))]
+  return names.map((name) => ({ sellerName: name }))
 })
+
+function merchantAddress(merchant) {
+  const parts = [merchant.country, merchant.provinceState, merchant.city, merchant.postalCode, merchant.addressLine]
+    .filter(Boolean)
+  return parts.length ? parts.join(' · ') : '商家暂未维护发货地址'
+}
 
 // 客户操作仅对客户展示，管理员与商家只处理履约
 const showCancel = computed(() => isCustomer.value && order.value?.status === 'PENDING_PAYMENT')
@@ -270,10 +314,29 @@ const shippingMethodText = computed(() => {
 const afterSaleClass = computed(() => {
   const map = {
     PENDING: 'border-amber-200 bg-amber-50/70 text-amber-700',
+    WAITING_RETURN: 'border-sky-200 bg-sky-50/70 text-sky-600',
+    WAITING_RECEIPT: 'border-indigo-200 bg-indigo-50/70 text-indigo-600',
     REJECTED: 'border-rose-200 bg-rose-50/70 text-rose-600',
     REFUNDED: 'border-emerald-200 bg-emerald-50/70 text-emerald-700'
   }
   return map[afterSale.value?.status] || 'border-slate-200 bg-slate-50 text-slate-600'
+})
+
+const afterSaleTone = computed(() => {
+  const map = {
+    PENDING: 'amber',
+    WAITING_RETURN: 'sky',
+    WAITING_RECEIPT: 'indigo',
+    REJECTED: 'rose',
+    REFUNDED: 'emerald'
+  }
+  return map[afterSale.value?.status] || 'slate'
+})
+
+const displayStatusText = computed(() => {
+  if (!order.value) return ''
+  if (isCustomer.value && order.value.status === 'SHIPPED') return '待收货'
+  return order.value.statusText
 })
 
 function money(amount) {
@@ -281,17 +344,17 @@ function money(amount) {
   return `${symbol}${Number(amount || 0).toFixed(2)}`
 }
 
-function statusClass(status) {
+function statusTone(status) {
   const map = {
-    PENDING_PAYMENT: 'border-amber-200 bg-amber-50 text-amber-700',
-    PENDING_SHIPMENT: 'border-blue-200 bg-blue-50 text-blue-700',
-    SHIPPED: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    COMPLETED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    CANCELLED: 'border-slate-200 bg-slate-50 text-slate-500',
-    AFTER_SALES: 'border-orange-200 bg-orange-50 text-orange-700',
-    REFUNDED: 'border-rose-200 bg-rose-50 text-rose-700'
+    PENDING_PAYMENT: 'amber',
+    PENDING_SHIPMENT: 'blue',
+    SHIPPED: 'sky',
+    COMPLETED: 'emerald',
+    CANCELLED: 'slate',
+    AFTER_SALES: 'orange',
+    REFUNDED: 'rose'
   }
-  return map[status] || 'border-slate-200 bg-slate-50 text-slate-500'
+  return map[status] || 'slate'
 }
 
 async function loadDetail() {
@@ -379,6 +442,16 @@ async function handleUrge() {
 }
 
 async function handleShipped() {
+  await loadDetail()
+  emit('updated')
+}
+
+async function handleReturnSubmitted() {
+  await loadDetail()
+  emit('updated')
+}
+
+async function handleReceived() {
   await loadDetail()
   emit('updated')
 }

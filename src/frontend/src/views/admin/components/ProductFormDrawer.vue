@@ -4,6 +4,7 @@
     :title="isEdit ? '编辑商品' : '新增商品'"
     size="660px"
     :close-on-click-modal="false"
+    append-to-body
   >
     <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-position="top">
       <div class="grid grid-cols-2 gap-x-4">

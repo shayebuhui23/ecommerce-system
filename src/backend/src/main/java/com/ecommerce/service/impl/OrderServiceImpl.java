@@ -30,10 +30,12 @@ import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.mapper.UserMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.ExchangeRateService;
+import com.ecommerce.service.NotificationService;
 import com.ecommerce.service.OperationLogService;
 import com.ecommerce.service.OrderService;
 import com.ecommerce.vo.OrderDetailVO;
 import com.ecommerce.vo.OrderItemVO;
+import com.ecommerce.vo.OrderMerchantVO;
 import com.ecommerce.vo.OrderVO;
 import com.ecommerce.vo.ShipmentVO;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +86,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserMapper userMapper;
     private final ExchangeRateService exchangeRateService;
     private final OperationLogService operationLogService;
+    private final NotificationService notificationService;
 
     public OrderServiceImpl(OrderMapper orderMapper,
                             OrderItemMapper orderItemMapper,
@@ -93,7 +98,8 @@ public class OrderServiceImpl implements OrderService {
                             ShipmentMapper shipmentMapper,
                             UserMapper userMapper,
                             ExchangeRateService exchangeRateService,
-                            OperationLogService operationLogService) {
+                            OperationLogService operationLogService,
+                            NotificationService notificationService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.cartMapper = cartMapper;
@@ -105,6 +111,7 @@ public class OrderServiceImpl implements OrderService {
         this.userMapper = userMapper;
         this.exchangeRateService = exchangeRateService;
         this.operationLogService = operationLogService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -191,7 +198,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword, Long sellerId) {
+    public PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword,
+                                    Long sellerId, Boolean afterSale) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         if (!isManager()) {
             wrapper.eq(Order::getUserId, LoginUserUtil.currentUserId());
@@ -202,6 +210,14 @@ public class OrderServiceImpl implements OrderService {
                         "SELECT oi.order_id FROM order_items oi INNER JOIN products p ON p.id = oi.product_id"
                                 + " WHERE p.seller_id = " + scopeSellerId);
             }
+        }
+        if (Boolean.TRUE.equals(afterSale)) {
+            // 售后处理：存在售后单，或订单已进入售后/退款状态
+            wrapper.and(w -> w.inSql(Order::getId,
+                            "SELECT order_id FROM after_sales WHERE deleted = 0"
+                                    + " AND status IN ('PENDING', 'WAITING_RETURN', 'WAITING_RECEIPT', 'REFUNDED')")
+                    .or()
+                    .in(Order::getStatus, OrderStatus.AFTER_SALES.name(), OrderStatus.REFUNDED.name()));
         }
         if (StringUtils.hasText(status)) {
             wrapper.eq(Order::getStatus, status.trim());
@@ -256,6 +272,43 @@ public class OrderServiceImpl implements OrderService {
                         ? seller.getNickname() : seller.getUsername());
             }
         }
+
+        // 商家信息：名称、联系电话与默认发货地址
+        LinkedHashSet<Long> orderedSellerIds = itemVos.stream()
+                .map(OrderItemVO::getSellerId).filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, Address> sellerAddressMap = new HashMap<>();
+        if (!orderedSellerIds.isEmpty()) {
+            List<Address> sellerAddresses = addressMapper.selectList(new LambdaQueryWrapper<Address>()
+                    .in(Address::getUserId, orderedSellerIds));
+            for (Address address : sellerAddresses) {
+                Address current = sellerAddressMap.get(address.getUserId());
+                if (current == null || (address.getIsDefault() != null && address.getIsDefault() == 1)) {
+                    sellerAddressMap.put(address.getUserId(), address);
+                }
+            }
+        }
+        List<OrderMerchantVO> merchants = new ArrayList<>();
+        for (Long sellerId : orderedSellerIds) {
+            User seller = sellerMap.get(sellerId);
+            OrderMerchantVO merchant = new OrderMerchantVO();
+            merchant.setSellerId(sellerId);
+            merchant.setSellerName(seller == null
+                    ? null
+                    : (StringUtils.hasText(seller.getNickname()) ? seller.getNickname() : seller.getUsername()));
+            Address sellerAddress = sellerAddressMap.get(sellerId);
+            if (sellerAddress != null) {
+                merchant.setPhone(sellerAddress.getPhone());
+                merchant.setCountry(sellerAddress.getCountry());
+                merchant.setProvinceState(sellerAddress.getProvinceState());
+                merchant.setCity(sellerAddress.getCity());
+                merchant.setPostalCode(sellerAddress.getPostalCode());
+                merchant.setAddressLine(sellerAddress.getAddressLine());
+            }
+            merchants.add(merchant);
+        }
+        vo.setMerchants(merchants);
+
         vo.setItems(itemVos);
         vo.setItemCount(items.stream().mapToInt(OrderItem::getQuantity).sum());
 
@@ -310,7 +363,25 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "当前订单状态不支持催发货");
         }
         operationLogService.record("ORDER", "客户催发货", order.getOrderNo());
+        User customer = userMapper.selectById(order.getUserId());
+        String customerName = customer == null ? "客户"
+                : (StringUtils.hasText(customer.getNickname()) ? customer.getNickname() : customer.getUsername());
+        notificationService.notifyOrderUrge(sellerIdsOfOrder(order.getId()), order.getId(), order.getOrderNo(), customerName);
         log.info("客户催发货：orderNo={}, userId={}", order.getOrderNo(), order.getUserId());
+    }
+
+    private List<Long> sellerIdsOfOrder(Long orderId) {
+        List<OrderItem> items = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
+        return productMapper.selectBatchIds(productIds).stream()
+                .map(Product::getSellerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     private OrderItem buildOrderItem(Product product, Integer quantity, BigDecimal subtotal) {

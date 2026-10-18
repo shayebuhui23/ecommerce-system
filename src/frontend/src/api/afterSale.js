@@ -15,3 +15,11 @@ export function fetchAfterSaleByOrder(orderId) {
 export function fetchAfterSalePage(params) {
   return request.get('/after-sale/page', { params })
 }
+
+export function submitReturnShipment(id, data) {
+  return request.put(`/after-sale/${id}/return-shipment`, data)
+}
+
+export function confirmReturnReceipt(id) {
+  return request.put(`/after-sale/${id}/confirm-receipt`)
+}

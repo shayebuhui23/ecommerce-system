@@ -41,33 +41,34 @@
         <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <span class="inline-flex items-center gap-1.5 text-xs" :class="row.status === 1 ? 'text-emerald-600' : 'text-slate-400'">
-              <span class="h-1.5 w-1.5 rounded-full bg-current" />
-              {{ row.status === 1 ? '启用' : '停用' }}
-            </span>
+            <StatusTag
+              :text="row.status === 1 ? '启用' : '停用'"
+              :tone="row.status === 1 ? 'emerald' : 'slate'"
+              size="xs"
+            />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right" align="left" header-align="left">
           <template #default="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="-ml-2 flex h-7 items-center gap-1">
               <button
                 v-if="row.parentId === 0"
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs text-brand-600 transition-colors hover:bg-brand-50"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-brand-600 transition-colors hover:bg-brand-50"
                 @click="openCreate(row.id)"
               >
                 添加子分类
               </button>
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-slate-500 transition-colors hover:bg-slate-100"
                 @click="openEdit(row)"
               >
                 编辑
               </button>
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs text-rose-500 transition-colors hover:bg-rose-50"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-rose-500 transition-colors hover:bg-rose-50"
                 @click="remove(row)"
               >
                 删除
@@ -128,6 +129,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from 'lucide-vue-next'
+import StatusTag from '../../components/StatusTag.vue'
 import { createCategory, deleteCategory, fetchCategoryTree, updateCategory } from '../../api/category'
 
 const loading = ref(false)

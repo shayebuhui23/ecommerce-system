@@ -49,7 +49,7 @@ mysql -u root -p < src/database/schema.sql
 mysql -u root -p < src/database/seed.sql
 ```
 
-执行后得到 `ecommerce` 库，包含 17 张业务表（users、roles、categories、products、product_skus、carts、cart_items、addresses、orders、order_items、payments、shipments、after_sales、reviews、inventory_logs、exchange_rates、operation_logs）。
+执行后得到 `ecommerce` 库，包含 18 张业务表（users、roles、categories、products、product_skus、carts、cart_items、addresses、orders、order_items、payments、shipments、after_sales、reviews、inventory_logs、exchange_rates、operation_logs、notifications）。
 
 > `schema.sql` 可重复执行（会先删除同名表），仅用于开发与课程演示环境。
 
@@ -59,7 +59,27 @@ mysql -u root -p < src/database/seed.sql
 mysql -u root -p < src/database/migration-multimerchant.sql
 mysql -u root -p < src/database/migration-product-cost.sql
 mysql -u root -p < src/database/migration-username-scheme.sql
+mysql -u root -p < src/database/migration-notifications.sql
+mysql -u root -p < src/database/migration-aftersale-return.sql
 ```
+
+## 一键启动（推荐）
+
+项目根目录提供了 `start-dev.ps1`，会自动检查 MySQL，并在两个新窗口中分别启动后端与前端，等待端口就绪后打开浏览器：
+
+```powershell
+.\start-dev.ps1
+# 不自动打开浏览器
+.\start-dev.ps1 -NoBrowser
+```
+
+如果提示脚本被禁止运行，可改用：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
+```
+
+脚本打开的「电商后端 8080」「电商前端 5173」两个窗口需要保持开启，关闭窗口即停止对应服务。也可以按下面章节手动启动。
 
 ## 二、启动后端
 
@@ -140,18 +160,24 @@ npm run dev
 | DELETE | `/api/cart/items/{id}` | 登录 | 移出购物车 |
 | DELETE | `/api/cart/items` | 登录 | 清空购物车 |
 | POST | `/api/order` | 登录 | 从购物车创建订单（后端算价、条件扣库存） |
-| GET | `/api/order/page` | 登录 | 订单分页；客户看自己的订单，商家看本店商品相关订单，管理员可按 `sellerId` 筛选 |
+| GET | `/api/order/page` | 登录 | 订单分页；客户看自己的订单，商家看本店商品相关订单，管理员可按 `sellerId` 筛选；`afterSale=true` 仅返回售后处理中/已退款订单 |
 | GET | `/api/order/{id}` | 登录 | 订单详情（含商品快照与地址快照） |
 | PUT | `/api/order/{id}/cancel` | 登录 | 取消待付款订单并恢复库存 |
 | POST | `/api/payment/pay` | 登录 | 模拟支付（可模拟成功/失败），成功后订单转待发货 |
 | GET | `/api/payment/order/{orderId}` | 登录 | 查询订单支付记录 |
 | GET | `/api/payment/page` | ADMIN | 管理员分页查询支付记录 |
 | POST | `/api/order/{id}/ship` | STAFF | 商家发货并录入物流公司与单号 |
-| POST | `/api/order/{id}/urge` | 登录 | 客户催发货（仅待发货订单，写入操作日志） |
+| POST | `/api/order/{id}/urge` | 登录 | 客户催发货（仅待发货订单，写入操作日志并给商家发送站内提醒） |
+| GET | `/api/notification/list` | 登录 | 当前用户的通知列表 |
+| GET | `/api/notification/unread-count` | 登录 | 当前用户未读通知数量 |
+| PUT | `/api/notification/{id}/read` | 登录 | 将一条通知标记为已读 |
+| PUT | `/api/notification/read-all` | 登录 | 全部标记为已读 |
 | GET | `/api/order/{id}/shipment` | 登录 | 查询订单物流信息 |
 | POST | `/api/order/{id}/receive` | 登录 | 客户确认收货 |
-| POST | `/api/after-sale` | 登录 | 提交整单退款申请 |
-| PUT | `/api/after-sale/{id}/audit` | STAFF | 商家审核退款，通过即执行模拟退款 |
+| POST | `/api/after-sale` | 登录 | 提交售后申请，`type` 为 `REFUND_ONLY`（仅退款）或 `RETURN_REFUND`（退货退款） |
+| PUT | `/api/after-sale/{id}/audit` | STAFF | 商家审核：仅退款通过即退款；退货退款通过后等待买家寄回 |
+| PUT | `/api/after-sale/{id}/return-shipment` | 登录 | 买家填写退货物流，售后进入待商家收货 |
+| PUT | `/api/after-sale/{id}/confirm-receipt` | STAFF | 商家确认收到退货，完成退款并恢复库存 |
 | GET | `/api/after-sale/order/{orderId}` | 登录 | 查询订单的售后单 |
 | GET | `/api/after-sale/page` | 登录 | 售后单分页；客户看自己的，商家看本店商品的售后，管理员可按 `sellerId` 筛选 |
 | POST | `/api/review` | 登录 | 提交商品评价（仅已完成订单） |

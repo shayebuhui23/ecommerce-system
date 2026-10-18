@@ -33,8 +33,8 @@
           :key="tab.value"
           type="button"
           class="rounded-full px-3 py-1.5 text-xs transition-colors"
-          :class="query.status === tab.value ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
-          @click="selectStatus(tab.value)"
+          :class="isActiveTab(tab) ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+          @click="selectTab(tab)"
         >
           {{ tab.label }}
         </button>
@@ -55,9 +55,7 @@
               <span class="ml-2 text-xs text-slate-400">{{ order.consignee }} · {{ order.country }}</span>
             </p>
           </div>
-          <span class="rounded-full border px-3 py-1 text-[11px]" :class="statusClass(order.status)">
-            {{ order.statusText }}
-          </span>
+          <StatusTag :text="displayStatus(order)" :tone="statusTone(order.status)" />
         </div>
 
         <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
@@ -116,6 +114,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ReceiptText, Search } from 'lucide-vue-next'
 import { cancelOrder, fetchOrderPage } from '../../api/order'
 import { useUserStore } from '../../stores/user'
+import StatusTag from '../../components/StatusTag.vue'
 import OrderDetailDrawer from './components/OrderDetailDrawer.vue'
 
 const userStore = useUserStore()
@@ -127,7 +126,7 @@ const total = ref(0)
 const keyword = ref('')
 const detailVisible = ref(false)
 const detailId = ref(null)
-const query = reactive({ pageNum: 1, pageSize: 10, status: '' })
+const query = reactive({ pageNum: 1, pageSize: 10, status: '', afterSale: false })
 
 const pageTitle = computed(() => (isMerchant.value ? '客户订单' : '我的订单'))
 const pageHint = computed(() =>
@@ -149,10 +148,10 @@ const tabs = computed(() =>
     : [
         { label: '全部', value: '' },
         { label: '待付款', value: 'PENDING_PAYMENT' },
-        { label: '待发货', value: 'PENDING_SHIPMENT' },
-        { label: '已发货', value: 'SHIPPED' },
+        { label: '待收货', value: 'SHIPPED' },
         { label: '已完成', value: 'COMPLETED' },
-        { label: '已取消', value: 'CANCELLED' }
+        { label: '已取消', value: 'CANCELLED' },
+        { label: '售后处理', value: '', afterSale: true }
       ]
 )
 
@@ -161,17 +160,23 @@ function money(currency, amount) {
   return `${symbol}${Number(amount || 0).toFixed(2)}`
 }
 
-function statusClass(status) {
+function statusTone(status) {
   const map = {
-    PENDING_PAYMENT: 'border-amber-200 bg-amber-50 text-amber-700',
-    PENDING_SHIPMENT: 'border-blue-200 bg-blue-50 text-blue-700',
-    SHIPPED: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    COMPLETED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    CANCELLED: 'border-slate-200 bg-slate-50 text-slate-500',
-    AFTER_SALES: 'border-orange-200 bg-orange-50 text-orange-700',
-    REFUNDED: 'border-rose-200 bg-rose-50 text-rose-700'
+    PENDING_PAYMENT: 'amber',
+    PENDING_SHIPMENT: 'blue',
+    SHIPPED: 'sky',
+    COMPLETED: 'emerald',
+    CANCELLED: 'slate',
+    AFTER_SALES: 'orange',
+    REFUNDED: 'rose'
   }
-  return map[status] || 'border-slate-200 bg-slate-50 text-slate-500'
+  return map[status] || 'slate'
+}
+
+function displayStatus(order) {
+  if (isMerchant.value) return order.statusText
+  if (order.status === 'SHIPPED') return '待收货'
+  return order.statusText
 }
 
 async function loadOrders() {
@@ -179,7 +184,8 @@ async function loadOrders() {
   const data = await fetchOrderPage({
     pageNum: query.pageNum,
     pageSize: query.pageSize,
-    status: query.status || undefined,
+    status: query.afterSale ? undefined : query.status || undefined,
+    afterSale: query.afterSale || undefined,
     keyword: keyword.value.trim() || undefined
   }).catch((error) => {
     console.error('加载订单失败', error)
@@ -196,8 +202,14 @@ function handleSearch() {
   loadOrders()
 }
 
-function selectStatus(status) {
-  query.status = status
+function isActiveTab(tab) {
+  if (tab.afterSale) return query.afterSale
+  return !query.afterSale && query.status === tab.value
+}
+
+function selectTab(tab) {
+  query.status = tab.value
+  query.afterSale = Boolean(tab.afterSale)
   query.pageNum = 1
   loadOrders()
 }

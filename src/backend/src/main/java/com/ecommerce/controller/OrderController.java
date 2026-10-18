@@ -55,8 +55,9 @@ public class OrderController {
             @Max(value = 100, message = "每页条数不能超过 100") long pageSize,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Long sellerId) {
-        return Result.success(orderService.page(pageNum, pageSize, status, keyword, sellerId));
+            @RequestParam(required = false) Long sellerId,
+            @RequestParam(required = false) Boolean afterSale) {
+        return Result.success(orderService.page(pageNum, pageSize, status, keyword, sellerId, afterSale));
     }
 
     @GetMapping("/{id}")

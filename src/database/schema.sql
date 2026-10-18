@@ -295,16 +295,20 @@ CREATE TABLE `after_sales` (
     `after_sale_no` VARCHAR(32)     NOT NULL COMMENT '售后单号，全局唯一',
     `order_id`      BIGINT UNSIGNED NOT NULL COMMENT '订单 ID',
     `user_id`       BIGINT UNSIGNED NOT NULL COMMENT '申请客户 ID',
-    `type`          VARCHAR(32)     NOT NULL DEFAULT 'REFUND' COMMENT '售后类型：REFUND 整单退款',
-    `reason`        VARCHAR(255)    NOT NULL COMMENT '退款原因',
-    `description`   VARCHAR(500)             DEFAULT NULL COMMENT '补充说明',
-    `amount`        DECIMAL(14, 2)  NOT NULL COMMENT '申请退款金额，不得超过可退款金额',
-    `currency`      CHAR(3)         NOT NULL COMMENT '退款币种，与原订单一致',
-    `status`        VARCHAR(32)     NOT NULL COMMENT '状态：PENDING/APPROVED/REJECTED/REFUNDED',
-    `audit_remark`  VARCHAR(500)             DEFAULT NULL COMMENT '审核意见',
-    `audited_by`    BIGINT UNSIGNED          DEFAULT NULL COMMENT '审核人 ID',
-    `audited_at`    DATETIME                 DEFAULT NULL COMMENT '审核时间',
-    `refunded_at`   DATETIME                 DEFAULT NULL COMMENT '退款完成时间',
+    `type`                  VARCHAR(32)     NOT NULL DEFAULT 'REFUND_ONLY' COMMENT '售后类型：REFUND_ONLY 仅退款，RETURN_REFUND 退货退款',
+    `reason`                VARCHAR(255)    NOT NULL COMMENT '退款原因',
+    `description`           VARCHAR(500)             DEFAULT NULL COMMENT '补充说明',
+    `amount`                DECIMAL(14, 2)  NOT NULL COMMENT '申请退款金额，不得超过可退款金额',
+    `currency`              CHAR(3)         NOT NULL COMMENT '退款币种，与原订单一致',
+    `status`                VARCHAR(32)     NOT NULL COMMENT '状态：PENDING/WAITING_RETURN/WAITING_RECEIPT/REJECTED/REFUNDED',
+    `audit_remark`          VARCHAR(500)             DEFAULT NULL COMMENT '审核意见',
+    `audited_by`            BIGINT UNSIGNED          DEFAULT NULL COMMENT '审核人 ID',
+    `audited_at`            DATETIME                 DEFAULT NULL COMMENT '审核时间',
+    `return_shipping_company` VARCHAR(64)            DEFAULT NULL COMMENT '退货物流公司',
+    `return_tracking_no`    VARCHAR(64)              DEFAULT NULL COMMENT '退货物流单号',
+    `return_shipped_at`     DATETIME                 DEFAULT NULL COMMENT '买家寄回时间',
+    `return_received_at`    DATETIME                 DEFAULT NULL COMMENT '商家确认收货时间',
+    `refunded_at`           DATETIME                 DEFAULT NULL COMMENT '退款完成时间',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -387,5 +391,23 @@ CREATE TABLE `operation_logs` (
     KEY `idx_operation_user` (`user_id`),
     KEY `idx_operation_created` (`created_at`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='关键操作审计日志';
+
+-- ------------------------------------------------------------
+-- 18. 站内消息通知（客户催发货等）
+-- ------------------------------------------------------------
+CREATE TABLE `notifications` (
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`    BIGINT UNSIGNED NOT NULL COMMENT '接收人 ID',
+    `type`       VARCHAR(32)     NOT NULL COMMENT '消息类型，如 ORDER_URGE',
+    `title`      VARCHAR(128)    NOT NULL COMMENT '消息标题',
+    `content`    VARCHAR(500)             DEFAULT NULL COMMENT '消息内容',
+    `related_id` BIGINT UNSIGNED          DEFAULT NULL COMMENT '关联业务 ID',
+    `link`       VARCHAR(255)             DEFAULT NULL COMMENT '点击跳转的前端路径',
+    `is_read`    TINYINT         NOT NULL DEFAULT 0 COMMENT '是否已读：1 已读，0 未读',
+    `deleted`    TINYINT         NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+    `created_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_notifications_user` (`user_id`, `is_read`, `created_at`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='站内消息通知';
 
 SET FOREIGN_KEY_CHECKS = 1;

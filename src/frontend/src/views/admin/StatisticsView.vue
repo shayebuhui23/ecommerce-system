@@ -1,47 +1,38 @@
 <template>
   <div v-loading="loading" class="space-y-4">
     <!-- 毛利仪表盘：仅商家关注成本与毛利，管理员不展示 -->
-    <section v-if="isMerchant" class="relative overflow-hidden rounded-3xl bg-ink-800 px-7 py-6 text-white shadow-soft">
-      <div class="pointer-events-none absolute inset-0">
-        <div class="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-brand-600/40 blur-[90px]" />
-        <div class="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-cyan-500/20 blur-[100px]" />
-      </div>
-
-      <div class="relative flex flex-wrap items-center gap-8">
+    <section
+      v-if="isMerchant"
+      class="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-[0_10px_30px_-24px_rgba(31,36,48,0.5)]"
+    >
+      <div class="flex flex-wrap items-center gap-8">
         <div class="flex items-center gap-5">
           <div class="relative h-28 w-28 shrink-0 rounded-full" :style="donutStyle">
-            <div class="absolute inset-2.5 flex flex-col items-center justify-center rounded-full bg-ink-800">
-              <p class="font-mono text-xl leading-none">{{ marginPercent.toFixed(1) }}%</p>
-              <p class="mt-1 text-[10px] text-white/45">毛利率</p>
+            <div class="absolute inset-2.5 flex flex-col items-center justify-center rounded-full bg-white">
+              <p class="font-mono text-xl leading-none text-slate-800">{{ marginPercent.toFixed(1) }}%</p>
+              <p class="mt-1 text-[10px] text-slate-400">毛利率</p>
             </div>
           </div>
           <div>
-            <p class="text-[11px] uppercase tracking-[0.2em] text-white/40">Gross Profit</p>
-            <p class="mt-1 font-mono text-2xl font-semibold">{{ money(data.grossProfit) }}</p>
-            <p class="mt-1 text-xs text-white/50">已完成订单毛利（成交 {{ money(data.completedAmount) }} − 成本 {{ money(data.costAmount) }}）</p>
+            <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">毛利概览</p>
+            <p class="mt-1 font-mono text-2xl font-semibold text-slate-800">{{ money(data.grossProfit) }}</p>
+            <p class="mt-1 text-xs text-slate-400">已完成订单毛利（成交 − 成本）</p>
           </div>
         </div>
 
-        <div class="grid min-w-[280px] flex-1 grid-cols-2 gap-3 sm:grid-cols-3">
-          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-[11px] text-white/45">成交金额</p>
-            <p class="mt-1 font-mono text-lg">{{ money(data.completedAmount) }}</p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div class="h-full rounded-full bg-gradient-to-r from-brand-400 to-cyan-300" style="width: 100%" />
+        <div class="grid min-w-[260px] flex-1 grid-cols-2 gap-3">
+          <div class="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+            <p class="text-[11px] text-slate-400">商品成本</p>
+            <p class="mt-1 font-mono text-lg text-slate-800">{{ money(data.costAmount) }}</p>
+            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200/70">
+              <div class="h-full rounded-full bg-amber-400/80" :style="{ width: `${costPercent}%` }" />
             </div>
           </div>
-          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-[11px] text-white/45">商品成本</p>
-            <p class="mt-1 font-mono text-lg">{{ money(data.costAmount) }}</p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div class="h-full rounded-full bg-amber-300/80" :style="{ width: `${costPercent}%` }" />
-            </div>
-          </div>
-          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-[11px] text-white/45">毛利</p>
-            <p class="mt-1 font-mono text-lg">{{ money(data.grossProfit) }}</p>
-            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div class="h-full rounded-full bg-emerald-300/80" :style="{ width: `${marginPercent}%` }" />
+          <div class="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+            <p class="text-[11px] text-slate-400">毛利</p>
+            <p class="mt-1 font-mono text-lg text-slate-800">{{ money(data.grossProfit) }}</p>
+            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200/70">
+              <div class="h-full rounded-full bg-gradient-to-r from-brand-500 to-cyan-400" :style="{ width: `${marginPercent}%` }" />
             </div>
           </div>
         </div>
@@ -157,7 +148,7 @@ const costPercent = computed(() => {
 })
 
 const donutStyle = computed(() => ({
-  background: `conic-gradient(#34d399 0% ${marginPercent.value}%, rgba(255,255,255,0.08) ${marginPercent.value}% 100%)`
+  background: `conic-gradient(#4f46e5 0% ${marginPercent.value}%, #eef0ff ${marginPercent.value}% 100%)`
 }))
 
 const metrics = computed(() => [

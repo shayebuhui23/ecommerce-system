@@ -31,7 +31,7 @@ public class AfterSale implements Serializable {
 
     private Long userId;
 
-    /** REFUND 整单退款 */
+    /** REFUND_ONLY 仅退款 / RETURN_REFUND 退货退款 */
     private String type;
 
     private String reason;
@@ -42,7 +42,7 @@ public class AfterSale implements Serializable {
 
     private String currency;
 
-    /** PENDING / APPROVED / REJECTED / REFUNDED */
+    /** PENDING / WAITING_RETURN / WAITING_RECEIPT / REJECTED / REFUNDED */
     private String status;
 
     private String auditRemark;
@@ -50,6 +50,14 @@ public class AfterSale implements Serializable {
     private Long auditedBy;
 
     private LocalDateTime auditedAt;
+
+    private String returnShippingCompany;
+
+    private String returnTrackingNo;
+
+    private LocalDateTime returnShippedAt;
+
+    private LocalDateTime returnReceivedAt;
 
     private LocalDateTime refundedAt;
 

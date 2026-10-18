@@ -37,15 +37,19 @@
             />
             <component :is="iconMap[item.icon] || LayoutDashboard" class="h-[18px] w-[18px] shrink-0" />
             <span v-if="!collapsed" class="truncate">{{ item.title }}</span>
-            <span
+            <CountBadge
               v-if="!collapsed && item.badge"
-              class="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-medium text-white"
-            >
-              {{ item.badge > 99 ? '99+' : item.badge }}
-            </span>
-            <span
+              :value="item.badge"
+              size="sm"
+              ring="ink"
+              class="ml-auto"
+            />
+            <CountBadge
               v-else-if="collapsed && item.badge"
-              class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500"
+              :value="item.badge"
+              size="xs"
+              ring="ink"
+              class="absolute right-1.5 top-1.5"
             />
           </router-link>
         </div>
@@ -85,6 +89,70 @@
         </div>
 
         <div class="flex items-center gap-3">
+          <el-popover
+            v-if="isMerchant"
+            placement="bottom-end"
+            :width="330"
+            trigger="click"
+            @show="loadNotifications"
+          >
+            <template #reference>
+              <button
+                type="button"
+                class="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                aria-label="消息通知"
+              >
+                <Bell class="h-[18px] w-[18px]" />
+                <CountBadge
+                  v-if="unreadCount"
+                  :value="unreadCount"
+                  size="sm"
+                  ring="white"
+                  class="absolute -right-0.5 -top-0.5"
+                />
+              </button>
+            </template>
+
+            <div>
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <p class="text-sm font-medium text-slate-800">消息通知</p>
+                <button
+                  v-if="unreadCount"
+                  type="button"
+                  class="text-[11px] text-brand-600 hover:underline"
+                  @click="handleReadAll"
+                >
+                  全部已读
+                </button>
+              </div>
+
+              <div v-if="notifications.length" class="mt-1 max-h-80 space-y-1 overflow-y-auto">
+                <button
+                  v-for="item in notifications"
+                  :key="item.id"
+                  type="button"
+                  class="flex w-full items-start gap-2 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-50"
+                  @click="openNotification(item)"
+                >
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                    :class="item.isRead ? 'bg-slate-200' : 'bg-rose-500'"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="flex items-center justify-between gap-2">
+                      <span class="text-xs font-medium" :class="item.isRead ? 'text-slate-500' : 'text-slate-800'">
+                        {{ item.title }}
+                      </span>
+                      <span class="shrink-0 text-[10px] text-slate-400">{{ formatNotifyTime(item.createdAt) }}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[11px] leading-5 text-slate-500">{{ item.content }}</span>
+                  </span>
+                </button>
+              </div>
+              <p v-else class="py-8 text-center text-xs text-slate-400">暂无消息</p>
+            </div>
+          </el-popover>
+
           <RoleTag :code="userStore.roleCode" :name="userStore.roleName" tone="light" />
           <el-dropdown trigger="click" @command="handleCommand">
             <button
@@ -123,11 +191,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BarChart3,
+  Bell,
   ChevronDown,
   ClipboardList,
   Coins,
@@ -147,9 +216,17 @@ import {
   Users
 } from 'lucide-vue-next'
 import RoleTag from '../components/RoleTag.vue'
+import CountBadge from '../components/CountBadge.vue'
+import { fetchCart } from '../api/cart'
 import { resolveMenus } from '../router/routes'
 import { useUserStore } from '../stores/user'
 import { fetchStatisticsOverview } from '../api/statistics'
+import {
+  fetchNotifications,
+  fetchUnreadCount,
+  markAllNotificationsRead,
+  markNotificationRead
+} from '../api/notification'
 
 const router = useRouter()
 const route = useRoute()
@@ -177,10 +254,15 @@ const iconMap = {
 // 阶段五完成后所有规划中的业务模块均已上线，保留空数组以便后续扩展
 const pendingModules = []
 
+const isMerchant = computed(() => userStore.roleCode === 'STAFF')
 const badgeCounts = ref({ orders: 0, afterSales: 0 })
+const cartCount = ref(0)
+const notifications = ref([])
+const unreadCount = ref(0)
+let notifyTimer = null
 
 async function loadBadges() {
-  if (userStore.roleCode !== 'STAFF') return
+  if (!isMerchant.value) return
   const data = await fetchStatisticsOverview().catch(() => null)
   if (!data) return
   badgeCounts.value = {
@@ -189,8 +271,55 @@ async function loadBadges() {
   }
 }
 
-onMounted(loadBadges)
-watch(() => route.fullPath, loadBadges)
+async function loadCartBadge() {
+  if (userStore.roleCode !== 'CUSTOMER') return
+  const data = await fetchCart().catch(() => null)
+  cartCount.value = Number(data?.totalQuantity || 0)
+}
+
+async function loadNotifications() {
+  if (!isMerchant.value) return
+  const [list, count] = await Promise.all([
+    fetchNotifications({ limit: 10 }).catch(() => null),
+    fetchUnreadCount().catch(() => null)
+  ])
+  if (list) notifications.value = list
+  if (count !== null && count !== undefined) unreadCount.value = Number(count)
+}
+
+async function openNotification(item) {
+  if (!item.isRead) {
+    await markNotificationRead(item.id).catch(() => null)
+    item.isRead = 1
+    loadNotifications()
+  }
+  if (item.link) router.push(item.link)
+}
+
+async function handleReadAll() {
+  await markAllNotificationsRead().catch(() => null)
+  loadNotifications()
+}
+
+function formatNotifyTime(value) {
+  if (!value) return ''
+  return String(value).replace('T', ' ').slice(5, 16)
+}
+
+onMounted(() => {
+  loadBadges()
+  loadCartBadge()
+  loadNotifications()
+  notifyTimer = setInterval(loadNotifications, 20000)
+})
+onUnmounted(() => {
+  if (notifyTimer) clearInterval(notifyTimer)
+})
+watch(() => route.fullPath, () => {
+  loadBadges()
+  loadCartBadge()
+  loadNotifications()
+})
 
 const menuGroups = computed(() => {
   const menus = resolveMenus(userStore.roleCode).map((item) => ({
@@ -200,7 +329,9 @@ const menuGroups = computed(() => {
         ? badgeCounts.value.orders
         : item.path === '/admin/after-sales'
           ? badgeCounts.value.afterSales
-          : 0,
+          : item.path === '/cart'
+            ? cartCount.value
+            : 0,
     // 商家的地址用于商品发货、订单页面对应客户订单
     title:
       userStore.roleCode === 'STAFF' && item.path === '/addresses'

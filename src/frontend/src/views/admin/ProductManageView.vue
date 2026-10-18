@@ -109,27 +109,36 @@
         </el-table-column>
         <el-table-column label="状态" min-width="78">
           <template #default="{ row }">
-            <span class="inline-flex items-center gap-1.5 text-xs" :class="row.status === 1 ? 'text-emerald-600' : 'text-slate-400'">
-              <span class="h-1.5 w-1.5 rounded-full bg-current" />
-              {{ row.status === 1 ? '已上架' : '已下架' }}
-            </span>
+            <StatusTag
+              :text="row.status === 1 ? '已上架' : '已下架'"
+              :tone="row.status === 1 ? 'emerald' : 'slate'"
+              size="xs"
+            />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="178" fixed="right">
+        <el-table-column label="操作" width="178" fixed="right" align="left" header-align="left">
           <template #default="{ row }">
-            <div class="flex items-center gap-1">
-              <button type="button" class="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100" @click="openEdit(row)">
+            <div class="-ml-2 flex h-7 items-center gap-1">
+              <button
+                type="button"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-slate-500 hover:bg-slate-100"
+                @click="openEdit(row)"
+              >
                 编辑
               </button>
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-xs transition-colors"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs transition-colors"
                 :class="row.status === 1 ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'"
                 @click="toggleStatus(row)"
               >
                 {{ row.status === 1 ? '下架' : '上架' }}
               </button>
-              <button type="button" class="rounded-lg px-2 py-1 text-xs text-rose-500 hover:bg-rose-50" @click="remove(row)">
+              <button
+                type="button"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs text-rose-500 hover:bg-rose-50"
+                @click="remove(row)"
+              >
                 删除
               </button>
             </div>
@@ -220,6 +229,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, RefreshCw, Search } from 'lucide-vue-next'
 import ProductFormDrawer from './components/ProductFormDrawer.vue'
+import StatusTag from '../../components/StatusTag.vue'
 import { deleteProduct, fetchProductPage, updateProductStatus } from '../../api/product'
 import { fetchCategoryTree } from '../../api/category'
 import { fetchUserPage } from '../../api/user'

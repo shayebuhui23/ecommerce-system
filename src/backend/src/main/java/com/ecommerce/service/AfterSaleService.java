@@ -3,6 +3,7 @@ package com.ecommerce.service;
 import com.ecommerce.common.PageResult;
 import com.ecommerce.dto.AfterSaleApplyDTO;
 import com.ecommerce.dto.AfterSaleAuditDTO;
+import com.ecommerce.dto.ReturnShipmentDTO;
 import com.ecommerce.vo.AfterSaleVO;
 
 /**
@@ -19,6 +20,16 @@ public interface AfterSaleService {
      * 商家审核：通过则执行模拟退款并流转订单状态，驳回则仅更新售后单。
      */
     AfterSaleVO audit(Long id, AfterSaleAuditDTO dto);
+
+    /**
+     * 买家填写退货物流，售后进入「待商家收货」。
+     */
+    AfterSaleVO submitReturnShipment(Long id, ReturnShipmentDTO dto);
+
+    /**
+     * 商家确认收到退货并完成退款。
+     */
+    AfterSaleVO confirmReturn(Long id);
 
     /**
      * 查询指定订单的售后单。

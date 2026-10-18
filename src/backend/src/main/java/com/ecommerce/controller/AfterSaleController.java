@@ -6,6 +6,7 @@ import com.ecommerce.common.Result;
 import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.AfterSaleApplyDTO;
 import com.ecommerce.dto.AfterSaleAuditDTO;
+import com.ecommerce.dto.ReturnShipmentDTO;
 import com.ecommerce.service.AfterSaleService;
 import com.ecommerce.vo.AfterSaleVO;
 import org.springframework.validation.annotation.Validated;
@@ -46,6 +47,24 @@ public class AfterSaleController {
     public Result<AfterSaleVO> audit(@PathVariable Long id, @Valid @RequestBody AfterSaleAuditDTO dto) {
         AfterSaleVO vo = afterSaleService.audit(id, dto);
         return Result.success(Boolean.TRUE.equals(dto.getApproved()) ? "已通过并退款" : "已驳回", vo);
+    }
+
+    /**
+     * 买家填写退货物流。
+     */
+    @PutMapping("/{id}/return-shipment")
+    public Result<AfterSaleVO> submitReturnShipment(@PathVariable Long id,
+                                                    @Valid @RequestBody ReturnShipmentDTO dto) {
+        return Result.success("退货物流已提交", afterSaleService.submitReturnShipment(id, dto));
+    }
+
+    /**
+     * 商家确认收到退货并完成退款。
+     */
+    @SaCheckRole(RoleCode.STAFF)
+    @PutMapping("/{id}/confirm-receipt")
+    public Result<AfterSaleVO> confirmReceipt(@PathVariable Long id) {
+        return Result.success("已确认收货并退款", afterSaleService.confirmReturn(id));
     }
 
     @GetMapping("/order/{orderId}")

@@ -29,6 +29,8 @@ public class OrderDetailVO extends OrderVO {
     private LocalDateTime completedAt;
     private LocalDateTime cancelledAt;
     private List<OrderItemVO> items = new ArrayList<>();
+    /** 订单涉及商家的名称、电话与发货地址 */
+    private List<OrderMerchantVO> merchants = new ArrayList<>();
     /** 物流信息，未发货时为空 */
     private ShipmentVO shipment;
 

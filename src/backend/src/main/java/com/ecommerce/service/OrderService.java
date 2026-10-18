@@ -19,7 +19,8 @@ public interface OrderService {
      * 分页查询订单。客户只能看到自己的订单；商家只能看到包含本店商品的订单；
      * 管理员可查看全部并可按商家筛选。
      */
-    PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword, Long sellerId);
+    PageResult<OrderVO> page(long pageNum, long pageSize, String status, String keyword,
+                             Long sellerId, Boolean afterSale);
 
     OrderDetailVO detail(Long id);
 

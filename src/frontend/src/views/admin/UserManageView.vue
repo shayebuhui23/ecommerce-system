@@ -70,33 +70,33 @@
         </el-table-column>
         <el-table-column label="状态" min-width="90">
           <template #default="{ row }">
-            <span
-              class="inline-flex items-center gap-1.5 text-xs"
-              :class="row.status === 1 ? 'text-emerald-600' : 'text-slate-400'"
-            >
-              <span class="h-1.5 w-1.5 rounded-full bg-current" />
-              {{ row.status === 1 ? '启用' : '已禁用' }}
-            </span>
+            <StatusTag
+              :text="row.status === 1 ? '启用' : '已禁用'"
+              :tone="row.status === 1 ? 'emerald' : 'slate'"
+              size="xs"
+            />
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="注册时间" min-width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right" align="left" header-align="left">
           <template #default="{ row }">
-            <button
-              type="button"
-              class="rounded-lg px-2.5 py-1 text-xs transition-colors"
-              :class="
-                row.id === currentUserId
-                  ? 'cursor-not-allowed text-slate-300'
-                  : row.status === 1
-                    ? 'text-rose-500 hover:bg-rose-50'
-                    : 'text-emerald-600 hover:bg-emerald-50'
-              "
-              :disabled="row.id === currentUserId"
-              @click="toggleStatus(row)"
-            >
-              {{ row.status === 1 ? '禁用' : '启用' }}
-            </button>
+            <div class="-ml-2 flex h-7 items-center">
+              <button
+                type="button"
+                class="inline-flex h-7 items-center rounded-lg px-2 text-xs transition-colors"
+                :class="
+                  row.id === currentUserId
+                    ? 'cursor-not-allowed text-slate-300'
+                    : row.status === 1
+                      ? 'text-rose-500 hover:bg-rose-50'
+                      : 'text-emerald-600 hover:bg-emerald-50'
+                "
+                :disabled="row.id === currentUserId"
+                @click="toggleStatus(row)"
+              >
+                {{ row.status === 1 ? '禁用' : '启用' }}
+              </button>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -129,6 +129,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
 import RoleTag from '../../components/RoleTag.vue'
+import StatusTag from '../../components/StatusTag.vue'
 import { fetchUserPage, updateUserStatus } from '../../api/user'
 import { useUserStore } from '../../stores/user'
 
