@@ -1,5 +1,5 @@
 <template>
-  <span class="inline-flex items-center justify-center rounded-full text-center font-semibold leading-none tabular-nums" :class="classes">
+  <span class="inline-flex items-center justify-center rounded-full text-center font-medium leading-none tabular-nums" :class="classes">
     {{ display }}
   </span>
 </template>
@@ -23,8 +23,8 @@ const display = computed(() => {
 
 const sizeClass = computed(() => {
   const map = {
-    xs: 'h-4 min-w-4 px-1 text-[9px]',
-    sm: 'h-[18px] min-w-[18px] px-1.5 text-[10px]',
+    xs: 'h-4 min-w-4 px-1 text-[10px]',
+    sm: 'h-[18px] min-w-[18px] px-1.5 text-[11px]',
     md: 'h-5 min-w-5 px-1.5 text-[11px]'
   }
   return map[props.size] || map.sm

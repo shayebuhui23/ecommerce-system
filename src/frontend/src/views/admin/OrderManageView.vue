@@ -140,7 +140,9 @@ const statusOptions = [
   { label: '待发货', value: 'PENDING_SHIPMENT' },
   { label: '已发货', value: 'SHIPPED' },
   { label: '已完成', value: 'COMPLETED' },
-  { label: '已取消', value: 'CANCELLED' }
+  { label: '已取消', value: 'CANCELLED' },
+  { label: '售后处理中', value: 'AFTER_SALES' },
+  { label: '已退款', value: 'REFUNDED' }
 ]
 
 function money(currency, amount) {
@@ -161,7 +163,10 @@ function statusTone(code) {
   return map[code] || 'slate'
 }
 
+let loadSeq = 0
+
 async function loadOrders() {
+  const seq = ++loadSeq
   loading.value = true
   const data = await fetchOrderPage({
     pageNum: query.pageNum,
@@ -173,6 +178,8 @@ async function loadOrders() {
     console.error('加载订单失败', error)
     return null
   })
+  // 只采纳最后一次查询的结果，避免筛选/翻页连续操作时旧响应覆盖新列表
+  if (seq !== loadSeq) return
   loading.value = false
   if (!data) return
   rows.value = data.records
