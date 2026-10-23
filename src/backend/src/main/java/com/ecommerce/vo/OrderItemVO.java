@@ -19,6 +19,8 @@ public class OrderItemVO implements Serializable {
     /** 商品所属商家 */
     private Long sellerId;
     private String sellerName;
+    private Long skuId;
+    private String specName;
     private String productName;
     private String productNameEn;
     private String skuCode;
@@ -31,6 +33,8 @@ public class OrderItemVO implements Serializable {
         OrderItemVO vo = new OrderItemVO();
         vo.setId(item.getId());
         vo.setProductId(item.getProductId());
+        vo.setSkuId(item.getSkuId());
+        vo.setSpecName(item.getSpecName());
         vo.setProductName(item.getProductName());
         vo.setProductNameEn(item.getProductNameEn());
         vo.setSkuCode(item.getSkuCode());

@@ -6,10 +6,12 @@ import com.ecommerce.dto.CartItemDTO;
 import com.ecommerce.entity.Cart;
 import com.ecommerce.entity.CartItem;
 import com.ecommerce.entity.Product;
+import com.ecommerce.entity.ProductSku;
 import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.CartItemMapper;
 import com.ecommerce.mapper.CartMapper;
 import com.ecommerce.mapper.ProductMapper;
+import com.ecommerce.mapper.ProductSkuMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.CartService;
 import com.ecommerce.vo.CartItemVO;
@@ -41,11 +43,14 @@ public class CartServiceImpl implements CartService {
     private final CartMapper cartMapper;
     private final CartItemMapper cartItemMapper;
     private final ProductMapper productMapper;
+    private final ProductSkuMapper productSkuMapper;
 
-    public CartServiceImpl(CartMapper cartMapper, CartItemMapper cartItemMapper, ProductMapper productMapper) {
+    public CartServiceImpl(CartMapper cartMapper, CartItemMapper cartItemMapper,
+                           ProductMapper productMapper, ProductSkuMapper productSkuMapper) {
         this.cartMapper = cartMapper;
         this.cartItemMapper = cartItemMapper;
         this.productMapper = productMapper;
+        this.productSkuMapper = productSkuMapper;
     }
 
     @Override
@@ -71,6 +76,12 @@ public class CartServiceImpl implements CartService {
         List<Long> productIds = items.stream().map(CartItem::getProductId).distinct().collect(Collectors.toList());
         Map<Long, Product> productMap = productMapper.selectBatchIds(productIds).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
+        List<Long> skuIds = items.stream().map(CartItem::getSkuId)
+                .filter(id -> id != null && id > 0).distinct().collect(Collectors.toList());
+        Map<Long, ProductSku> skuMap = skuIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : productSkuMapper.selectBatchIds(skuIds).stream()
+                        .collect(Collectors.toMap(ProductSku::getId, Function.identity()));
 
         List<CartItemVO> itemVOs = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -79,12 +90,33 @@ public class CartServiceImpl implements CartService {
         for (CartItem item : items) {
             Product product = productMap.get(item.getProductId());
             if (product == null) {
-                // 商品已被删除，直接跳过，避免脏数据影响结算
+                // 商品已删除时仍展示占位项，避免用户购物车商品“凭空消失”
+                CartItemVO missing = CartItemVO.of(item.getId(), item.getProductId(),
+                        item.getSkuId() == null || item.getSkuId() <= 0 ? null : item.getSkuId(),
+                        null, "商品已删除", null, null, "", BigDecimal.ZERO, "CNY",
+                        0, item.getQuantity(), 0);
+                missing.setAvailable(false);
+                missing.setUnavailableReason("商品已删除，请移除");
+                itemVOs.add(missing);
+                totalQuantity += item.getQuantity();
                 continue;
             }
-            CartItemVO itemVO = CartItemVO.of(item.getId(), product.getId(), product.getName(),
-                    product.getNameEn(), product.getImageUrl(), product.getSkuCode(), product.getPrice(),
-                    product.getCurrency(), product.getStock(), item.getQuantity(), product.getStatus());
+            Long skuId = item.getSkuId() == null || item.getSkuId() <= 0 ? null : item.getSkuId();
+            ProductSku sku = skuId == null ? null : skuMap.get(skuId);
+            BigDecimal price = sku == null ? product.getPrice() : sku.getPrice();
+            Integer stock = sku == null ? product.getStock() : sku.getStock();
+            String skuCode = sku == null ? product.getSkuCode() : sku.getSkuCode();
+            String specName = sku == null ? null : sku.getSpecName();
+            CartItemVO itemVO = CartItemVO.of(item.getId(), product.getId(), skuId, specName,
+                    product.getName(), product.getNameEn(), product.getImageUrl(), skuCode, price,
+                    product.getCurrency(), stock, item.getQuantity(), product.getStatus());
+            if (skuId != null && sku == null) {
+                itemVO.setAvailable(false);
+                itemVO.setUnavailableReason("商品规格已失效，请重新选择");
+            } else if (sku != null && (sku.getStatus() == null || sku.getStatus() != 1)) {
+                itemVO.setAvailable(false);
+                itemVO.setUnavailableReason("该规格已下架");
+            }
             itemVOs.add(itemVO);
             totalQuantity += item.getQuantity();
             if (Boolean.TRUE.equals(itemVO.getAvailable())) {
@@ -109,16 +141,20 @@ public class CartServiceImpl implements CartService {
     public void addItem(CartItemDTO dto) {
         Long userId = LoginUserUtil.currentUserId();
         Product product = requirePurchasableProduct(dto.getProductId(), dto.getQuantity());
+        ProductSku sku = resolveSku(product, dto.getSkuId(), dto.getQuantity());
+        long skuId = sku == null ? 0L : sku.getId();
 
         Cart cart = getOrCreateCart(userId);
         CartItem existing = cartItemMapper.selectOne(new LambdaQueryWrapper<CartItem>()
                 .eq(CartItem::getCartId, cart.getId())
-                .eq(CartItem::getProductId, dto.getProductId()));
+                .eq(CartItem::getProductId, dto.getProductId())
+                .eq(CartItem::getSkuId, skuId));
 
         if (existing == null) {
             CartItem item = new CartItem();
             item.setCartId(cart.getId());
             item.setProductId(product.getId());
+            item.setSkuId(skuId);
             item.setQuantity(dto.getQuantity());
             cartItemMapper.insert(item);
             return;
@@ -128,13 +164,40 @@ public class CartServiceImpl implements CartService {
         if (newQuantity > MAX_QUANTITY) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "单个商品最多购买 " + MAX_QUANTITY + " 件");
         }
-        if (product.getStock() != null && newQuantity > product.getStock()) {
-            throw new BusinessException(ResultCode.BUSINESS_ERROR, "库存不足，当前仅剩 " + product.getStock() + " 件");
+        Integer available = sku == null ? product.getStock() : sku.getStock();
+        if (available != null && newQuantity > available) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "库存不足，当前仅剩 " + available + " 件");
         }
         CartItem update = new CartItem();
         update.setId(existing.getId());
         update.setQuantity(newQuantity);
         cartItemMapper.updateById(update);
+    }
+
+    /**
+     * 商品存在 SKU 时必须选择规格，并校验规格归属、状态与库存。
+     */
+    private ProductSku resolveSku(Product product, Long skuId, Integer quantity) {
+        long skuCount = productSkuMapper.selectCount(new LambdaQueryWrapper<ProductSku>()
+                .eq(ProductSku::getProductId, product.getId()));
+        if (skuCount > 0 && (skuId == null || skuId <= 0)) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "请选择商品规格");
+        }
+        if (skuId == null || skuId <= 0) {
+            return null;
+        }
+        ProductSku sku = productSkuMapper.selectById(skuId);
+        if (sku == null || !product.getId().equals(sku.getProductId())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "商品规格不存在，请重新选择");
+        }
+        if (sku.getStatus() == null || sku.getStatus() != 1) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "该规格已下架");
+        }
+        if (sku.getStock() == null || quantity > sku.getStock()) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                    "规格库存不足，当前仅剩 " + (sku.getStock() == null ? 0 : sku.getStock()) + " 件");
+        }
+        return sku;
     }
 
     @Override
@@ -145,9 +208,19 @@ public class CartServiceImpl implements CartService {
         if (product == null || product.getStatus() == null || product.getStatus() != STATUS_ON_SHELF) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "商品已下架，请从购物车移除");
         }
-        if (product.getStock() == null || quantity > product.getStock()) {
+        Integer available = null;
+        if (item.getSkuId() != null && item.getSkuId() > 0) {
+            ProductSku sku = productSkuMapper.selectById(item.getSkuId());
+            if (sku == null || sku.getStatus() == null || sku.getStatus() != 1) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "商品规格已失效，请从购物车移除");
+            }
+            available = sku.getStock();
+        } else {
+            available = product.getStock();
+        }
+        if (available == null || quantity > available) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "库存不足，当前仅剩 "
-                    + (product.getStock() == null ? 0 : product.getStock()) + " 件");
+                    + (available == null ? 0 : available) + " 件");
         }
 
         CartItem update = new CartItem();

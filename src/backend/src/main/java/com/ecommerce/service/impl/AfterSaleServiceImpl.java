@@ -15,13 +15,16 @@ import com.ecommerce.entity.AfterSale;
 import com.ecommerce.entity.InventoryLog;
 import com.ecommerce.entity.Order;
 import com.ecommerce.entity.OrderItem;
+import com.ecommerce.entity.Payment;
 import com.ecommerce.entity.Product;
 import com.ecommerce.exception.BusinessException;
 import com.ecommerce.mapper.AfterSaleMapper;
 import com.ecommerce.mapper.InventoryLogMapper;
 import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
+import com.ecommerce.mapper.PaymentMapper;
 import com.ecommerce.mapper.ProductMapper;
+import com.ecommerce.mapper.ProductSkuMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.AfterSaleService;
 import com.ecommerce.service.NotificationService;
@@ -73,7 +76,9 @@ public class AfterSaleServiceImpl implements AfterSaleService {
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final ProductMapper productMapper;
+    private final ProductSkuMapper productSkuMapper;
     private final InventoryLogMapper inventoryLogMapper;
+    private final PaymentMapper paymentMapper;
     private final OperationLogService operationLogService;
     private final NotificationService notificationService;
 
@@ -81,14 +86,18 @@ public class AfterSaleServiceImpl implements AfterSaleService {
                                 OrderMapper orderMapper,
                                 OrderItemMapper orderItemMapper,
                                 ProductMapper productMapper,
+                                ProductSkuMapper productSkuMapper,
                                 InventoryLogMapper inventoryLogMapper,
+                                PaymentMapper paymentMapper,
                                 OperationLogService operationLogService,
                                 NotificationService notificationService) {
         this.afterSaleMapper = afterSaleMapper;
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.productMapper = productMapper;
+        this.productSkuMapper = productSkuMapper;
         this.inventoryLogMapper = inventoryLogMapper;
+        this.paymentMapper = paymentMapper;
         this.operationLogService = operationLogService;
         this.notificationService = notificationService;
     }
@@ -210,6 +219,8 @@ public class AfterSaleServiceImpl implements AfterSaleService {
                 .eq(AfterSale::getId, id)
                 .eq(AfterSale::getStatus, STATUS_PENDING));
 
+        recordRefundPayment(order, afterSale);
+
         // 未发货订单退款需要把库存还回去；已发货订单商品在客户手中，不回库
         boolean notShipped = order.getShippedAt() == null;
         if (notShipped) {
@@ -297,6 +308,8 @@ public class AfterSaleServiceImpl implements AfterSaleService {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "售后状态已变化，请刷新后重试");
         }
 
+        recordRefundPayment(order, afterSale);
+
         // 商品已退回，回补库存
         restoreOrderStock(order.getId());
         log.info("退货退款完成：afterSaleNo={}", afterSale.getAfterSaleNo());
@@ -367,7 +380,14 @@ public class AfterSaleServiceImpl implements AfterSaleService {
             }
             return TYPE_RETURN_REFUND;
         }
-        return TYPE_RETURN_REFUND.equals(requestedType) ? TYPE_RETURN_REFUND : TYPE_REFUND_ONLY;
+        // 已发货订单必须走退货退款，避免买家仅退款后白拿商品
+        if (OrderStatus.SHIPPED.name().equals(orderStatus)) {
+            if (TYPE_REFUND_ONLY.equals(requestedType)) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR, "已发货订单请申请退货退款");
+            }
+            return TYPE_RETURN_REFUND;
+        }
+        return TYPE_REFUND_ONLY;
     }
 
     private void restoreOrderStock(Long orderId) {
@@ -375,6 +395,9 @@ public class AfterSaleServiceImpl implements AfterSaleService {
                 new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
         for (OrderItem item : items) {
             productMapper.restoreStock(item.getProductId(), item.getQuantity());
+            if (item.getSkuId() != null && item.getSkuId() > 0) {
+                productSkuMapper.restoreStock(item.getSkuId(), item.getQuantity());
+            }
             recordInventoryLog(item, orderId);
         }
     }
@@ -385,12 +408,36 @@ public class AfterSaleServiceImpl implements AfterSaleService {
         if (items.isEmpty()) {
             return Collections.emptyList();
         }
+        List<Long> snapshotSellerIds = items.stream()
+                .map(OrderItem::getSellerId).filter(java.util.Objects::nonNull)
+                .distinct().collect(Collectors.toList());
+        if (!snapshotSellerIds.isEmpty()) {
+            return snapshotSellerIds;
+        }
         List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
         return productMapper.selectBatchIds(productIds).stream()
                 .map(Product::getSellerId)
                 .filter(java.util.Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 退款写入支付流水，金额为负数，便于财务按流水汇总实收。
+     */
+    private void recordRefundPayment(Order order, AfterSale afterSale) {
+        Payment payment = new Payment();
+        payment.setPaymentNo("REF" + afterSale.getAfterSaleNo());
+        payment.setOrderId(order.getId());
+        payment.setUserId(order.getUserId());
+        payment.setAmount(afterSale.getAmount().negate());
+        payment.setCurrency(afterSale.getCurrency());
+        payment.setType("REFUND");
+        payment.setMethod("MOCK");
+        payment.setStatus(1);
+        payment.setTradeNo("MOCK-REFUND-" + afterSale.getId());
+        payment.setPaidAt(LocalDateTime.now());
+        paymentMapper.insert(payment);
     }
 
     private void recordInventoryLog(OrderItem item, Long orderId) {

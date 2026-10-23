@@ -61,6 +61,9 @@ public class Order implements Serializable {
 
     private String remark;
 
+    /** 支付截止时间，超时由定时任务自动取消 */
+    private LocalDateTime expireAt;
+
     private LocalDateTime paidAt;
 
     private LocalDateTime shippedAt;

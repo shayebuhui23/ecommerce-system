@@ -154,12 +154,12 @@ CREATE TABLE `cart_items` (
     `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
     `cart_id`    BIGINT UNSIGNED NOT NULL COMMENT '购物车 ID',
     `product_id` BIGINT UNSIGNED NOT NULL COMMENT '商品 ID',
-    `sku_id`     BIGINT UNSIGNED          DEFAULT NULL COMMENT 'SKU ID，为空表示使用商品默认价格库存',
+    `sku_id`     BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'SKU ID，0 表示使用商品默认价格库存',
     `quantity`   INT             NOT NULL COMMENT '购买数量，必须为正整数',
     `created_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_cart_items` (`cart_id`, `product_id`),
+    UNIQUE KEY `uk_cart_items` (`cart_id`, `product_id`, `sku_id`),
     KEY `idx_cart_items_product` (`product_id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='购物车明细';
 
@@ -207,6 +207,7 @@ CREATE TABLE `orders` (
     `shipping_method`   VARCHAR(32)              DEFAULT NULL COMMENT '运输方式：AIR/SEA/EXPRESS',
     `status`            VARCHAR(32)     NOT NULL COMMENT '订单状态：PENDING_PAYMENT/PENDING_SHIPMENT/SHIPPED/COMPLETED/CANCELLED/AFTER_SALES/REFUNDED',
     `remark`            VARCHAR(500)             DEFAULT NULL COMMENT '订单备注',
+    `expire_at`         DATETIME                 DEFAULT NULL COMMENT '支付截止时间',
     `paid_at`           DATETIME                 DEFAULT NULL COMMENT '支付时间',
     `shipped_at`        DATETIME                 DEFAULT NULL COMMENT '发货时间',
     `completed_at`      DATETIME                 DEFAULT NULL COMMENT '完成时间',
@@ -218,7 +219,8 @@ CREATE TABLE `orders` (
     UNIQUE KEY `uk_orders_no` (`order_no`),
     KEY `idx_orders_user` (`user_id`),
     KEY `idx_orders_status` (`status`),
-    KEY `idx_orders_created` (`created_at`)
+    KEY `idx_orders_created` (`created_at`),
+    KEY `idx_orders_user_status_created` (`user_id`, `status`, `created_at`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='订单主表';
 
 -- ------------------------------------------------------------
@@ -228,6 +230,7 @@ CREATE TABLE `order_items` (
     `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
     `order_id`        BIGINT UNSIGNED NOT NULL COMMENT '订单 ID',
     `product_id`      BIGINT UNSIGNED NOT NULL COMMENT '商品 ID',
+    `seller_id`       BIGINT UNSIGNED          DEFAULT NULL COMMENT '下单时商家 ID 快照',
     `sku_id`          BIGINT UNSIGNED          DEFAULT NULL COMMENT 'SKU ID',
     `product_name`    VARCHAR(128)    NOT NULL COMMENT '下单时商品名称快照',
     `product_name_en` VARCHAR(128)             DEFAULT NULL COMMENT '下单时英文名称快照',
@@ -235,6 +238,7 @@ CREATE TABLE `order_items` (
     `spec_name`       VARCHAR(128)             DEFAULT NULL COMMENT '下单时规格快照',
     `image_url`       VARCHAR(255)             DEFAULT NULL COMMENT '下单时图片快照',
     `unit_price`      DECIMAL(12, 2)  NOT NULL COMMENT '下单时单价快照',
+    `cost_price`      DECIMAL(12, 2)           DEFAULT NULL COMMENT '下单时成本价快照，用于历史毛利',
     `quantity`        INT             NOT NULL COMMENT '购买数量',
     `subtotal`        DECIMAL(14, 2)  NOT NULL COMMENT '小计 = 单价 × 数量',
     `currency`        CHAR(3)         NOT NULL COMMENT '币种',
@@ -254,6 +258,8 @@ CREATE TABLE `payments` (
     `user_id`    BIGINT UNSIGNED NOT NULL COMMENT '付款客户 ID',
     `amount`     DECIMAL(14, 2)  NOT NULL COMMENT '支付金额',
     `currency`   CHAR(3)         NOT NULL COMMENT '支付币种',
+    `type`       VARCHAR(16)     NOT NULL DEFAULT 'PAY' COMMENT '流水类型：PAY 支付，REFUND 退款',
+    `refund_of`  BIGINT UNSIGNED          DEFAULT NULL COMMENT '退款对应的原支付记录 ID',
     `method`     VARCHAR(32)     NOT NULL DEFAULT 'MOCK' COMMENT '支付方式，本项目固定为模拟支付',
     `status`     TINYINT         NOT NULL COMMENT '状态：1 成功，0 失败',
     `fail_reason` VARCHAR(255)            DEFAULT NULL COMMENT '失败原因',
@@ -311,11 +317,14 @@ CREATE TABLE `after_sales` (
     `refunded_at`           DATETIME                 DEFAULT NULL COMMENT '退款完成时间',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `active_flag`   TINYINT GENERATED ALWAYS AS (CASE WHEN `status` IN ('PENDING','WAITING_RETURN','WAITING_RECEIPT') THEN 1 ELSE NULL END) STORED COMMENT '进行中标记，用于唯一约束',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_after_sales_no` (`after_sale_no`),
+    UNIQUE KEY `uk_after_sales_active` (`order_id`, `active_flag`),
     KEY `idx_after_sales_order` (`order_id`),
     KEY `idx_after_sales_user` (`user_id`),
-    KEY `idx_after_sales_status` (`status`)
+    KEY `idx_after_sales_status` (`status`),
+    KEY `idx_after_sales_order_status` (`order_id`, `status`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='售后与退款申请';
 
 -- ------------------------------------------------------------

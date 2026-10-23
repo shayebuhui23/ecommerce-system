@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-drawer v-model="visible" size="540px" :with-header="false" append-to-body>
     <div v-loading="loading" class="pb-4">
       <template v-if="product">
@@ -35,12 +35,12 @@
           <div class="mt-4 flex items-end justify-between rounded-2xl bg-slate-50 px-4 py-3">
             <div>
               <p class="text-[11px] text-slate-400">售价</p>
-              <p class="font-mono text-2xl text-brand-600">{{ formatPrice(product) }}</p>
+              <p class="font-mono text-2xl text-brand-600">{{ formatAmount(currentPrice) }}</p>
             </div>
             <div class="text-right">
               <p class="text-[11px] text-slate-400">库存 / 销量</p>
-              <p class="mt-1 text-sm" :class="product.stock > 0 ? 'text-slate-600' : 'text-rose-500'">
-                {{ product.stock > 0 ? `${product.stock} 件` : '暂时缺货' }} · 已售 {{ product.salesCount || 0 }}
+              <p class="mt-1 text-sm" :class="currentStock > 0 ? 'text-slate-600' : 'text-rose-500'">
+                {{ currentStock > 0 ? `${currentStock} 件` : '暂时缺货' }} · 已售 {{ product.salesCount || 0 }}
               </p>
             </div>
           </div>
@@ -73,10 +73,18 @@
           <div v-if="product.skus && product.skus.length" class="mt-5">
             <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">可选规格</p>
             <div class="mt-2 space-y-2">
-              <div
+              <button
                 v-for="sku in product.skus"
                 :key="sku.id"
-                class="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5"
+                type="button"
+                class="flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                :class="
+                  selectedSkuId === sku.id
+                    ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200'
+                    : 'border-slate-200 hover:border-brand-200'
+                "
+                :disabled="sku.stock === 0"
+                @click="selectSku(sku)"
               >
                 <div>
                   <p class="text-xs text-slate-700">{{ sku.specName || sku.skuCode }}</p>
@@ -86,7 +94,7 @@
                   <p class="font-mono text-xs text-slate-700">{{ product.currency }} {{ Number(sku.price).toFixed(2) }}</p>
                   <p class="text-[10px] text-slate-400">库存 {{ sku.stock }}</p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -99,15 +107,15 @@
             <button
               type="button"
               class="flex-1 rounded-xl border border-brand-200 bg-white py-3 text-sm text-brand-600 transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="product.stock === 0 || adding"
+              :disabled="currentStock === 0 || adding"
               @click="handleAddToCart"
             >
-              {{ adding ? '正在加入…' : product.stock === 0 ? '暂时缺货' : '加入购物车' }}
+              {{ adding ? '正在加入…' : currentStock === 0 ? '暂时缺货' : '加入购物车' }}
             </button>
             <button
               type="button"
               class="flex-1 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 py-3 text-sm text-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-600/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="product.stock === 0 || buying"
+              :disabled="currentStock === 0 || buying"
               @click="handleBuyNow"
             >
               {{ buying ? '正在处理…' : '立即购买' }}
@@ -130,7 +138,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Info, PackageX, Store } from 'lucide-vue-next'
 import { fetchProductDetail } from '../../../api/product'
-import { addToCart, fetchCart } from '../../../api/cart'
+import { addToCart } from '../../../api/cart'
 import { fetchProductReviews, fetchReviewSummary } from '../../../api/review'
 import { useUserStore } from '../../../stores/user'
 
@@ -153,18 +161,34 @@ const buying = ref(false)
 const product = ref(null)
 // 仅客户参与购物车与下单流程，管理员和商家只查看商品目录
 const canPurchase = computed(() => userStore.roleCode === 'CUSTOMER')
+const selectedSkuId = ref(null)
+const skus = computed(() => product.value?.skus || [])
+const selectedSku = computed(() => skus.value.find((item) => item.id === selectedSkuId.value) || null)
+const currentPrice = computed(() => selectedSku.value?.price ?? product.value?.price)
+const currentStock = computed(() => selectedSku.value?.stock ?? product.value?.stock ?? 0)
 const reviews = ref([])
 const summary = ref({ reviewCount: 0, averageRating: 0 })
 
-function formatPrice(item) {
-  const symbol = item.currency === 'USD' ? '$' : '¥'
-  return `${symbol}${Number(item.price).toFixed(2)}`
+function formatAmount(amount) {
+  const symbol = product.value?.currency === 'USD' ? '$' : '¥'
+  return `${symbol}${Number(amount || 0).toFixed(2)}`
+}
+
+function selectSku(sku) {
+  if (sku.stock === 0) return
+  selectedSkuId.value = sku.id
 }
 
 async function handleAddToCart() {
   if (!product.value) return
+  if (skus.value.length && !selectedSkuId.value) {
+    ElMessage.warning('请先选择商品规格')
+    return
+  }
   adding.value = true
-  const ok = await addToCart({ productId: product.value.id, quantity: 1 })
+  const payload = { productId: product.value.id, quantity: 1 }
+  if (selectedSkuId.value) payload.skuId = selectedSkuId.value
+  const ok = await addToCart(payload)
     .then(() => true)
     .catch((error) => {
       console.error('加入购物车失败', error)
@@ -175,29 +199,19 @@ async function handleAddToCart() {
   ElMessage.success('已加入购物车')
 }
 
-async function handleBuyNow() {
+function handleBuyNow() {
   if (!product.value) return
-  buying.value = true
-  const ok = await addToCart({ productId: product.value.id, quantity: 1 })
-    .then(() => true)
-    .catch((error) => {
-      console.error('立即购买失败', error)
-      return false
-    })
-  if (!ok) {
-    buying.value = false
+  if (skus.value.length && !selectedSkuId.value) {
+    ElMessage.warning('请先选择商品规格')
     return
   }
-
-  const cart = await fetchCart().catch(() => null)
-  buying.value = false
-  const cartItem = (cart?.items || []).find((item) => item.productId === product.value.id)
+  buying.value = true
   visible.value = false
-  if (cartItem) {
-    router.push({ path: '/checkout', query: { items: String(cartItem.id), buyNow: '1' } })
-  } else {
-    router.push('/cart')
-  }
+  const query = { productId: String(product.value.id), quantity: '1', buyNow: '1' }
+  if (selectedSkuId.value) query.skuId = String(selectedSkuId.value)
+  // 直接进入结算，不写入购物车，避免累加已有数量
+  router.push({ path: '/checkout', query })
+  buying.value = false
 }
 
 watch(
@@ -214,6 +228,11 @@ watch(
       return null
     })
     product.value = data
+    selectedSkuId.value = null
+    if (data?.skus?.length) {
+      const first = data.skus.find((sku) => sku.stock > 0 && sku.status === 1) || data.skus[0]
+      selectedSkuId.value = first?.id || null
+    }
 
     if (data) {
       const [reviewPage, reviewSummary] = await Promise.all([

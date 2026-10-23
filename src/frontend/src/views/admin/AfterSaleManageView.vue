@@ -294,6 +294,22 @@ function openAudit(row) {
 
 async function submitAudit(approved) {
   if (!current.value) return
+
+  if (approved) {
+    const tip =
+      current.value.type === 'RETURN_REFUND'
+        ? '确认同意退货？通过后将等待买家寄回商品，商家确认收货后才执行退款。'
+        : `确认同意退款 ${money(current.value.currency, current.value.amount)}？退款操作不可撤销。`
+    const confirmed = await ElMessageBox.confirm(tip, '确认处理售后', {
+      confirmButtonText: '确认通过',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+      .then(() => true)
+      .catch(() => false)
+    if (!confirmed) return
+  }
+
   submitting.value = true
   const ok = await auditAfterSale(current.value.id, { approved, auditRemark: auditRemark.value || null })
     .then(() => true)

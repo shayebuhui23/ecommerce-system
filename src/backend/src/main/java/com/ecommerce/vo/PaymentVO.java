@@ -21,6 +21,8 @@ public class PaymentVO implements Serializable {
     private String orderNo;
     private BigDecimal amount;
     private String currency;
+    private String type;
+    private String typeText;
     private String method;
     private Integer status;
     private String statusText;
@@ -35,9 +37,15 @@ public class PaymentVO implements Serializable {
         vo.setOrderNo(orderNo);
         vo.setAmount(payment.getAmount());
         vo.setCurrency(payment.getCurrency());
+        vo.setType(payment.getType() == null ? "PAY" : payment.getType());
+        vo.setTypeText("REFUND".equals(vo.getType()) ? "退款" : "支付");
         vo.setMethod(payment.getMethod());
         vo.setStatus(payment.getStatus());
-        vo.setStatusText(payment.getStatus() != null && payment.getStatus() == 1 ? "支付成功" : "支付失败");
+        if ("REFUND".equals(vo.getType())) {
+            vo.setStatusText(payment.getStatus() != null && payment.getStatus() == 1 ? "退款成功" : "退款失败");
+        } else {
+            vo.setStatusText(payment.getStatus() != null && payment.getStatus() == 1 ? "支付成功" : "支付失败");
+        }
         vo.setFailReason(payment.getFailReason());
         vo.setPaidAt(payment.getPaidAt());
         return vo;

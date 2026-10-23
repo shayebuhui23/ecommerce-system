@@ -219,30 +219,46 @@ public class StatisticsServiceImpl implements StatisticsService {
         BigDecimal cost = BigDecimal.ZERO;
         for (OrderItem item : items) {
             Product product = productMap.get(item.getProductId());
-            if (product == null || product.getCostPrice() == null) {
+            Long itemSellerId = item.getSellerId() != null
+                    ? item.getSellerId()
+                    : (product == null ? null : product.getSellerId());
+            if (sellerId != null && !sellerId.equals(itemSellerId)) {
                 continue;
             }
-            if (sellerId != null && !sellerId.equals(product.getSellerId())) {
+            // 优先使用下单时成本快照，避免商家改成本后历史毛利被改写
+            BigDecimal costPrice = item.getCostPrice() != null
+                    ? item.getCostPrice()
+                    : (product == null ? null : product.getCostPrice());
+            if (costPrice == null) {
                 continue;
             }
-            cost = cost.add(product.getCostPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            cost = cost.add(costPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
         }
         return cost;
     }
 
     private List<StatisticsVO.TopProductVO> buildTopProducts(Long sellerId, List<Product> scopedProducts) {
+        // 热销榜只统计未取消、未退款的订单，与成交口径保持一致
+        List<Long> validOrderIds = orderMapper.selectList(new LambdaQueryWrapper<Order>()
+                        .notIn(Order::getStatus, OrderStatus.CANCELLED.name(), OrderStatus.REFUNDED.name()))
+                .stream().map(Order::getId).collect(Collectors.toList());
+        if (validOrderIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         List<OrderItem> items;
         Map<Long, Product> productMap;
         if (sellerId == null) {
-            items = orderItemMapper.selectList(null);
+            items = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().in(OrderItem::getOrderId, validOrderIds));
             productMap = new LinkedHashMap<>();
         } else {
             List<Long> ownProductIds = scopedProducts.stream().map(Product::getId).collect(Collectors.toList());
             if (ownProductIds.isEmpty()) {
                 return new ArrayList<>();
             }
-            items = orderItemMapper.selectList(
-                    new LambdaQueryWrapper<OrderItem>().in(OrderItem::getProductId, ownProductIds));
+            items = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
+                    .in(OrderItem::getOrderId, validOrderIds)
+                    .in(OrderItem::getProductId, ownProductIds));
             productMap = scopedProducts.stream().collect(Collectors.toMap(Product::getId, p -> p));
         }
         if (items.isEmpty()) {

@@ -60,6 +60,7 @@ mysql -u root -p < src/database/migration-multimerchant.sql
 mysql -u root -p < src/database/migration-product-cost.sql
 mysql -u root -p < src/database/migration-username-scheme.sql
 mysql -u root -p < src/database/migration-notifications.sql
+mysql -u root -p < src/database/migration-hardening.sql
 mysql -u root -p < src/database/migration-aftersale-return.sql
 ```
 
@@ -155,15 +156,15 @@ npm run dev
 | DELETE | `/api/address/{id}` | 登录 | 删除地址（校验数据归属） |
 | PUT | `/api/address/{id}/default` | 登录 | 设为默认地址 |
 | GET | `/api/cart` | 登录 | 购物车列表，金额与可用性由后端实时计算 |
-| POST | `/api/cart/items` | 登录 | 加入购物车（同一商品累加数量） |
-| PUT | `/api/cart/items/{id}` | 登录 | 修改数量（校验上架状态与库存） |
+| POST | `/api/cart/items` | 登录 | 加入购物车（同一商品+规格累加数量，商品有 SKU 时必须传 `skuId`） |
+| PUT | `/api/cart/items/{id}` | 登录 | 修改数量（校验上架状态、SKU 与库存） |
 | DELETE | `/api/cart/items/{id}` | 登录 | 移出购物车 |
 | DELETE | `/api/cart/items` | 登录 | 清空购物车 |
-| POST | `/api/order` | 登录 | 从购物车创建订单（后端算价、条件扣库存） |
+| POST | `/api/order` | 登录 | 从购物车创建订单，或传 `productId + skuId + quantity` 立即购买；一单只允许一个商家；30 分钟未支付会自动取消并回补库存 |
 | GET | `/api/order/page` | 登录 | 订单分页；客户看自己的订单，商家看本店商品相关订单，管理员可按 `sellerId` 筛选；`afterSale=true` 仅返回售后处理中/已退款订单 |
 | GET | `/api/order/{id}` | 登录 | 订单详情（含商品快照与地址快照） |
 | PUT | `/api/order/{id}/cancel` | 登录 | 取消待付款订单并恢复库存 |
-| POST | `/api/payment/pay` | 登录 | 模拟支付（可模拟成功/失败），成功后订单转待发货 |
+| POST | `/api/payment/pay` | 登录 | 模拟支付（可模拟成功/失败），成功后订单转待发货并累计销量；退款写入负数退款流水 |
 | GET | `/api/payment/order/{orderId}` | 登录 | 查询订单支付记录 |
 | GET | `/api/payment/page` | ADMIN | 管理员分页查询支付记录 |
 | POST | `/api/order/{id}/ship` | STAFF | 商家发货并录入物流公司与单号 |
@@ -174,7 +175,7 @@ npm run dev
 | PUT | `/api/notification/read-all` | 登录 | 全部标记为已读 |
 | GET | `/api/order/{id}/shipment` | 登录 | 查询订单物流信息 |
 | POST | `/api/order/{id}/receive` | 登录 | 客户确认收货 |
-| POST | `/api/after-sale` | 登录 | 提交售后申请，`type` 为 `REFUND_ONLY`（仅退款）或 `RETURN_REFUND`（退货退款） |
+| POST | `/api/after-sale` | 登录 | 提交售后申请，`type` 为 `REFUND_ONLY`（仅退款）或 `RETURN_REFUND`（退货退款）；待发货只能仅退款，已发货/已完成只能退货退款 |
 | PUT | `/api/after-sale/{id}/audit` | STAFF | 商家审核：仅退款通过即退款；退货退款通过后等待买家寄回 |
 | PUT | `/api/after-sale/{id}/return-shipment` | 登录 | 买家填写退货物流，售后进入待商家收货 |
 | PUT | `/api/after-sale/{id}/confirm-receipt` | STAFF | 商家确认收到退货，完成退款并恢复库存 |

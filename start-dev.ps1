@@ -46,8 +46,9 @@ if (Test-Port 8080) {
         exit 1
     }
     Write-Host '[2/3] 正在新窗口启动后端 ...' -ForegroundColor Yellow
-    $backendCommand = "`$host.UI.RawUI.WindowTitle='电商后端 8080'; Set-Location '$backendDir'; mvn spring-boot:run -Dspring-boot.run.profiles=local"
-    Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit', '-Command', $backendCommand
+    # 用 cmd 启动，避免 PowerShell 在 Start-Process 嵌套命令时把 -D 参数拆开
+    Start-Process -FilePath 'cmd.exe' -WorkingDirectory $backendDir `
+        -ArgumentList '/k', 'title Ecommerce Backend 8080 && mvn spring-boot:run -Dspring-boot.run.profiles=local'
 }
 
 # 3. 前端
@@ -59,8 +60,8 @@ if (Test-Port 5173) {
         exit 1
     }
     Write-Host '[3/3] 正在新窗口启动前端 ...' -ForegroundColor Yellow
-    $frontendCommand = "`$host.UI.RawUI.WindowTitle='电商前端 5173'; Set-Location '$frontendDir'; npm run dev"
-    Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoExit', '-Command', $frontendCommand
+    Start-Process -FilePath 'cmd.exe' -WorkingDirectory $frontendDir `
+        -ArgumentList '/k', 'title Ecommerce Frontend 5173 && npm run dev'
 }
 
 # 等待端口就绪

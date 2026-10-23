@@ -6,13 +6,16 @@ import cn.dev33.satoken.exception.NotRoleException;
 import com.ecommerce.common.Result;
 import com.ecommerce.common.ResultCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -103,6 +106,32 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(Result.fail(ResultCode.METHOD_NOT_ALLOWED));
+    }
+
+    /**
+     * 唯一约束冲突（订单号、用户名、邮箱、支付流水号等），转换为可读提示。
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<Result<Void>> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一约束冲突：{}", e.getMessage());
+        return badRequest("数据已存在或操作过于频繁，请刷新后重试");
+    }
+
+    /**
+     * 请求体 JSON 格式或字段类型错误。
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result<Void>> handleUnreadable(HttpMessageNotReadableException e) {
+        log.warn("请求体解析失败：{}", e.getMessage());
+        return badRequest("请求体格式有误，请检查字段类型");
+    }
+
+    /**
+     * 路径或查询参数类型不匹配，例如 /api/order/abc。
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Result<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return badRequest("参数「" + e.getName() + "」格式不正确");
     }
 
     /**

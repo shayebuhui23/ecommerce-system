@@ -8,9 +8,13 @@ import com.ecommerce.common.ResultCode;
 import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.ShipDTO;
 import com.ecommerce.entity.Order;
+import com.ecommerce.entity.OrderItem;
+import com.ecommerce.entity.Product;
 import com.ecommerce.entity.Shipment;
 import com.ecommerce.exception.BusinessException;
+import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
+import com.ecommerce.mapper.ProductMapper;
 import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.OperationLogService;
@@ -39,13 +43,19 @@ public class ShipmentServiceImpl implements ShipmentService {
 
     private final OrderMapper orderMapper;
     private final ShipmentMapper shipmentMapper;
+    private final OrderItemMapper orderItemMapper;
+    private final ProductMapper productMapper;
     private final OperationLogService operationLogService;
 
     public ShipmentServiceImpl(OrderMapper orderMapper,
                                ShipmentMapper shipmentMapper,
+                               OrderItemMapper orderItemMapper,
+                               ProductMapper productMapper,
                                OperationLogService operationLogService) {
         this.orderMapper = orderMapper;
         this.shipmentMapper = shipmentMapper;
+        this.orderItemMapper = orderItemMapper;
+        this.productMapper = productMapper;
         this.operationLogService = operationLogService;
     }
 
@@ -55,6 +65,24 @@ public class ShipmentServiceImpl implements ShipmentService {
         Order order = orderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "订单不存在");
+        }
+        // 商家只能发出包含本店商品的订单，避免越权操作其他商家订单
+        if (!StpUtil.hasRole(RoleCode.ADMIN) && StpUtil.hasRole(RoleCode.STAFF)) {
+            Long sellerId = LoginUserUtil.currentUserId();
+            List<OrderItem> items = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
+            boolean belongs = items.stream().anyMatch(item -> sellerId.equals(item.getSellerId()));
+            if (!belongs) {
+                List<Long> productIds = items.stream().map(OrderItem::getProductId)
+                        .distinct().collect(java.util.stream.Collectors.toList());
+                belongs = !productIds.isEmpty() && productMapper.selectCount(
+                        new LambdaQueryWrapper<Product>()
+                                .in(Product::getId, productIds)
+                                .eq(Product::getSellerId, sellerId)) > 0;
+            }
+            if (!belongs) {
+                throw new BusinessException(ResultCode.FORBIDDEN, "无权操作其他商家的订单");
+            }
         }
         if (!OrderStatus.PENDING_SHIPMENT.name().equals(order.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "只有待发货订单可以发货");

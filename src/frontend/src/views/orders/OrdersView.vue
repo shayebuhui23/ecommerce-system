@@ -148,6 +148,7 @@ const tabs = computed(() =>
     : [
         { label: '全部', value: '' },
         { label: '待付款', value: 'PENDING_PAYMENT' },
+        { label: '待发货', value: 'PENDING_SHIPMENT' },
         { label: '待收货', value: 'SHIPPED' },
         { label: '已完成', value: 'COMPLETED' },
         { label: '已取消', value: 'CANCELLED' },

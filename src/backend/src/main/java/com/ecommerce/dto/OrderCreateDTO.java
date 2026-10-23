@@ -2,6 +2,8 @@ package com.ecommerce.dto;
 
 import lombok.Data;
 
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -25,6 +27,19 @@ public class OrderCreateDTO implements Serializable {
 
     /** 参与结算的购物车项 ID；为空表示结算购物车全部商品 */
     private List<Long> cartItemIds = new ArrayList<>();
+
+    /** 立即购买的商品 ID，与 cartItemIds 二选一 */
+    @Min(value = 1, message = "请选择商品")
+    private Long productId;
+
+    /** 立即购买数量 */
+    @Min(value = 1, message = "购买数量必须大于 0")
+    @Max(value = 999, message = "单次最多购买 999 件")
+    private Integer quantity;
+
+    /** 立即购买的商品规格 */
+    @Min(value = 1, message = "请选择商品规格")
+    private Long skuId;
 
     @Size(max = 32, message = "运输方式长度不能超过 32 个字符")
     private String shippingMethod = "EXPRESS";

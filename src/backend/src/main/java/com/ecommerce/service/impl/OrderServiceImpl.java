@@ -16,6 +16,7 @@ import com.ecommerce.entity.InventoryLog;
 import com.ecommerce.entity.Order;
 import com.ecommerce.entity.OrderItem;
 import com.ecommerce.entity.Product;
+import com.ecommerce.entity.ProductSku;
 import com.ecommerce.entity.Shipment;
 import com.ecommerce.entity.User;
 import com.ecommerce.exception.BusinessException;
@@ -26,6 +27,7 @@ import com.ecommerce.mapper.InventoryLogMapper;
 import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.ProductMapper;
+import com.ecommerce.mapper.ProductSkuMapper;
 import com.ecommerce.mapper.ShipmentMapper;
 import com.ecommerce.mapper.UserMapper;
 import com.ecommerce.security.LoginUserUtil;
@@ -80,6 +82,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartMapper cartMapper;
     private final CartItemMapper cartItemMapper;
     private final ProductMapper productMapper;
+    private final ProductSkuMapper productSkuMapper;
     private final AddressMapper addressMapper;
     private final InventoryLogMapper inventoryLogMapper;
     private final ShipmentMapper shipmentMapper;
@@ -93,6 +96,7 @@ public class OrderServiceImpl implements OrderService {
                             CartMapper cartMapper,
                             CartItemMapper cartItemMapper,
                             ProductMapper productMapper,
+                            ProductSkuMapper productSkuMapper,
                             AddressMapper addressMapper,
                             InventoryLogMapper inventoryLogMapper,
                             ShipmentMapper shipmentMapper,
@@ -105,6 +109,7 @@ public class OrderServiceImpl implements OrderService {
         this.cartMapper = cartMapper;
         this.cartItemMapper = cartItemMapper;
         this.productMapper = productMapper;
+        this.productSkuMapper = productSkuMapper;
         this.addressMapper = addressMapper;
         this.inventoryLogMapper = inventoryLogMapper;
         this.shipmentMapper = shipmentMapper;
@@ -119,10 +124,21 @@ public class OrderServiceImpl implements OrderService {
     public OrderDetailVO create(OrderCreateDTO dto) {
         Long userId = LoginUserUtil.currentUserId();
         Address address = requireOwnAddress(dto.getAddressId(), userId);
-        List<CartItem> cartItems = loadCheckoutItems(userId, dto.getCartItemIds());
+        boolean directBuy = dto.getProductId() != null;
+        List<CartItem> cartItems;
+        if (directBuy) {
+            CartItem direct = new CartItem();
+            direct.setProductId(dto.getProductId());
+            direct.setSkuId(dto.getSkuId() == null ? 0L : dto.getSkuId());
+            direct.setQuantity(dto.getQuantity() == null ? 1 : dto.getQuantity());
+            cartItems = Collections.singletonList(direct);
+        } else {
+            cartItems = loadCheckoutItems(userId, dto.getCartItemIds());
+        }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<OrderItem> orderItems = new ArrayList<>();
+        Long sellerId = null;
         for (CartItem cartItem : cartItems) {
             Product product = productMapper.selectById(cartItem.getProductId());
             if (product == null) {
@@ -131,15 +147,44 @@ public class OrderServiceImpl implements OrderService {
             if (product.getStatus() == null || product.getStatus() != STATUS_ON_SHELF) {
                 throw new BusinessException(ResultCode.BUSINESS_ERROR, "商品「" + product.getName() + "」已下架");
             }
-            if (product.getStock() == null || product.getStock() < cartItem.getQuantity()) {
+            ProductSku sku = null;
+            if (cartItem.getSkuId() != null && cartItem.getSkuId() > 0) {
+                sku = productSkuMapper.selectById(cartItem.getSkuId());
+                if (sku == null || !product.getId().equals(sku.getProductId())
+                        || sku.getStatus() == null || sku.getStatus() != 1) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                            "商品「" + product.getName() + "」规格已失效，请重新选择");
+                }
+            } else {
+                long skuCount = productSkuMapper.selectCount(new LambdaQueryWrapper<ProductSku>()
+                        .eq(ProductSku::getProductId, product.getId()));
+                if (skuCount > 0) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                            "商品「" + product.getName() + "」需要选择规格");
+                }
+            }
+            Integer stock = sku == null ? product.getStock() : sku.getStock();
+            if (stock == null || stock < cartItem.getQuantity()) {
                 throw new BusinessException(ResultCode.BUSINESS_ERROR,
                         "商品「" + product.getName() + "」库存不足，请调整数量");
             }
-            BigDecimal subtotal = product.getPrice()
+            if (!"CNY".equals(product.getCurrency())) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                        "商品「" + product.getName() + "」币种不是 CNY，暂不支持结算");
+            }
+            // 一张订单只允许一个商家，避免多商家订单无法分别发货与售后
+            if (sellerId == null) {
+                sellerId = product.getSellerId();
+            } else if (!sellerId.equals(product.getSellerId())) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                        "订单包含多个商家的商品，请分开结算");
+            }
+            BigDecimal unitPrice = sku == null ? product.getPrice() : sku.getPrice();
+            BigDecimal subtotal = unitPrice
                     .multiply(BigDecimal.valueOf(cartItem.getQuantity()))
                     .setScale(2, RoundingMode.HALF_UP);
             totalAmount = totalAmount.add(subtotal);
-            orderItems.add(buildOrderItem(product, cartItem.getQuantity(), subtotal));
+            orderItems.add(buildOrderItem(product, sku, cartItem.getQuantity(), subtotal));
         }
 
         // 运费与免邮门槛按基础币种 CNY 判断
@@ -174,6 +219,7 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingMethod(dto.getShippingMethod());
         order.setStatus(OrderStatus.PENDING_PAYMENT.name());
         order.setRemark(dto.getRemark());
+        order.setExpireAt(LocalDateTime.now().plusMinutes(30));
         orderMapper.insert(order);
 
         for (OrderItem item : orderItems) {
@@ -182,15 +228,33 @@ public class OrderServiceImpl implements OrderService {
             // 条件更新：数量在 SQL 中参与判断，库存不足时影响行数为 0
             int affected = productMapper.deductStock(item.getProductId(), item.getQuantity());
             if (affected == 0) {
+                Product latest = productMapper.selectById(item.getProductId());
+                if (latest == null) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                            "商品「" + item.getProductName() + "」已删除，请重新选择");
+                }
+                if (latest.getStatus() == null || latest.getStatus() != STATUS_ON_SHELF) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                            "商品「" + item.getProductName() + "」已下架，无法结算");
+                }
                 throw new BusinessException(ResultCode.BUSINESS_ERROR,
                         "商品「" + item.getProductName() + "」库存不足，请调整后重试");
+            }
+            if (item.getSkuId() != null && item.getSkuId() > 0) {
+                int skuAffected = productSkuMapper.deductStock(item.getSkuId(), item.getQuantity());
+                if (skuAffected == 0) {
+                    throw new BusinessException(ResultCode.BUSINESS_ERROR,
+                            "商品「" + item.getProductName() + "」所选规格库存不足，请调整后重试");
+                }
             }
             recordInventoryLog(item.getProductId(), order.getId(), "ORDER_DEDUCT",
                     item.getQuantity(), userId, "创建订单扣减库存");
         }
 
-        // 下单成功后移除已结算的购物车项，重复提交会因购物车为空而失败
-        cartItemMapper.deleteBatchIds(cartItems.stream().map(CartItem::getId).collect(Collectors.toList()));
+        // 下单成功后移除已结算的购物车项；立即购买不产生购物车记录
+        if (!directBuy) {
+            cartItemMapper.deleteBatchIds(cartItems.stream().map(CartItem::getId).collect(Collectors.toList()));
+        }
         log.info("订单创建成功：orderNo={}, userId={}, payAmount={} {}", order.getOrderNo(), userId, payAmount, currency);
         operationLogService.record("ORDER", "创建订单",
                 order.getOrderNo() + " | " + payAmount + " " + currency);
@@ -254,19 +318,25 @@ public class OrderServiceImpl implements OrderService {
                 ? Collections.emptyMap()
                 : productMapper.selectBatchIds(productIds).stream()
                         .collect(Collectors.toMap(Product::getId, product -> product));
-        List<Long> sellerIds = productMap.values().stream()
-                .map(Product::getSellerId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, OrderItem> itemMap = items.stream()
+                .collect(Collectors.toMap(OrderItem::getId, item -> item));
+        for (OrderItemVO itemVo : itemVos) {
+            OrderItem item = itemMap.get(itemVo.getId());
+            Product product = productMap.get(itemVo.getProductId());
+            // 优先使用下单时的商家快照，商品删除或转移商家后历史订单仍可展示
+            Long sellerId = item != null && item.getSellerId() != null
+                    ? item.getSellerId()
+                    : (product == null ? null : product.getSellerId());
+            itemVo.setSellerId(sellerId);
+        }
+        List<Long> sellerIds = itemVos.stream()
+                .map(OrderItemVO::getSellerId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
         Map<Long, User> sellerMap = sellerIds.isEmpty()
                 ? Collections.emptyMap()
                 : userMapper.selectBatchIds(sellerIds).stream()
                         .collect(Collectors.toMap(User::getId, user -> user));
         for (OrderItemVO itemVo : itemVos) {
-            Product product = productMap.get(itemVo.getProductId());
-            if (product == null || product.getSellerId() == null) {
-                continue;
-            }
-            itemVo.setSellerId(product.getSellerId());
-            User seller = sellerMap.get(product.getSellerId());
+            User seller = sellerMap.get(itemVo.getSellerId());
             if (seller != null) {
                 itemVo.setSellerName(StringUtils.hasText(seller.getNickname())
                         ? seller.getNickname() : seller.getUsername());
@@ -307,10 +377,16 @@ public class OrderServiceImpl implements OrderService {
             }
             merchants.add(merchant);
         }
+        // 商家只看到本店商品与对应商家信息，避免订单内其他商家数据外泄
+        if (isStaffOnly()) {
+            Long currentSellerId = LoginUserUtil.currentUserId();
+            itemVos.removeIf(item -> !currentSellerId.equals(item.getSellerId()));
+            merchants.removeIf(merchant -> !currentSellerId.equals(merchant.getSellerId()));
+        }
         vo.setMerchants(merchants);
 
         vo.setItems(itemVos);
-        vo.setItemCount(items.stream().mapToInt(OrderItem::getQuantity).sum());
+        vo.setItemCount(itemVos.stream().mapToInt(OrderItemVO::getQuantity).sum());
 
         List<Shipment> shipments = shipmentMapper.selectList(
                 new LambdaQueryWrapper<Shipment>().eq(Shipment::getOrderId, order.getId()));
@@ -343,7 +419,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> items = orderItemMapper.selectList(
                 new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, id));
         for (OrderItem item : items) {
-            productMapper.restoreStock(item.getProductId(), item.getQuantity());
+            restoreItemStock(item);
             recordInventoryLog(item.getProductId(), id, "ORDER_CANCEL",
                     item.getQuantity(), LoginUserUtil.currentUserId(), "取消订单恢复库存");
         }
@@ -376,6 +452,11 @@ public class OrderServiceImpl implements OrderService {
         if (items.isEmpty()) {
             return Collections.emptyList();
         }
+        List<Long> snapshotSellerIds = items.stream()
+                .map(OrderItem::getSellerId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (!snapshotSellerIds.isEmpty()) {
+            return snapshotSellerIds;
+        }
         List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
         return productMapper.selectBatchIds(productIds).stream()
                 .map(Product::getSellerId)
@@ -384,18 +465,61 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toList());
     }
 
-    private OrderItem buildOrderItem(Product product, Integer quantity, BigDecimal subtotal) {
+    /**
+     * 每 5 分钟关闭一次超时未支付订单，并按取消逻辑回补库存。
+     */
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 */5 * * * ?")
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelExpiredOrders() {
+        List<Order> expired = orderMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getStatus, OrderStatus.PENDING_PAYMENT.name())
+                .isNotNull(Order::getExpireAt)
+                .lt(Order::getExpireAt, LocalDateTime.now()));
+        for (Order order : expired) {
+            Order update = new Order();
+            update.setStatus(OrderStatus.CANCELLED.name());
+            update.setCancelledAt(LocalDateTime.now());
+            int affected = orderMapper.update(update, new LambdaUpdateWrapper<Order>()
+                    .eq(Order::getId, order.getId())
+                    .eq(Order::getStatus, OrderStatus.PENDING_PAYMENT.name()));
+            if (affected == 0) {
+                continue;
+            }
+            List<OrderItem> items = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
+            for (OrderItem item : items) {
+                restoreItemStock(item);
+                recordInventoryLog(item.getProductId(), order.getId(), "ORDER_CANCEL",
+                        item.getQuantity(), null, "超时未支付自动取消，恢复库存");
+            }
+            operationLogService.record("ORDER", "超时未支付自动取消", order.getOrderNo());
+            log.info("订单超时自动取消：orderNo={}", order.getOrderNo());
+        }
+    }
+
+    private OrderItem buildOrderItem(Product product, ProductSku sku, Integer quantity, BigDecimal subtotal) {
         OrderItem item = new OrderItem();
         item.setProductId(product.getId());
+        item.setSellerId(product.getSellerId());
+        item.setSkuId(sku == null ? null : sku.getId());
+        item.setSpecName(sku == null ? null : sku.getSpecName());
         item.setProductName(product.getName());
         item.setProductNameEn(product.getNameEn());
-        item.setSkuCode(product.getSkuCode());
+        item.setSkuCode(sku == null ? product.getSkuCode() : sku.getSkuCode());
         item.setImageUrl(product.getImageUrl());
-        item.setUnitPrice(product.getPrice());
+        item.setUnitPrice(sku == null ? product.getPrice() : sku.getPrice());
+        item.setCostPrice(product.getCostPrice());
         item.setQuantity(quantity);
         item.setSubtotal(subtotal);
         item.setCurrency(product.getCurrency());
         return item;
+    }
+
+    private void restoreItemStock(OrderItem item) {
+        productMapper.restoreStock(item.getProductId(), item.getQuantity());
+        if (item.getSkuId() != null && item.getSkuId() > 0) {
+            productSkuMapper.restoreStock(item.getSkuId(), item.getQuantity());
+        }
     }
 
     private void recordInventoryLog(Long productId, Long orderId, String changeType,
@@ -480,6 +604,11 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> items = orderItemMapper.selectList(
                 new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
         if (items.isEmpty()) {
+            return false;
+        }
+        boolean snapshotMatched = items.stream()
+                .anyMatch(item -> sellerId.equals(item.getSellerId()));
+        if (snapshotMatched) {
             return true;
         }
         List<Long> productIds = items.stream().map(OrderItem::getProductId).distinct().collect(Collectors.toList());
@@ -511,7 +640,7 @@ public class OrderServiceImpl implements OrderService {
 
     private String generateOrderNo() {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        return "ORD" + timestamp + String.format("%03d", ThreadLocalRandom.current().nextInt(1000));
+        return "ORD" + timestamp + String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
     }
 
     private boolean isManager() {

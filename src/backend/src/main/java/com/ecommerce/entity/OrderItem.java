@@ -29,6 +29,9 @@ public class OrderItem implements Serializable {
 
     private Long productId;
 
+    /** 下单时商家 ID 快照，商品后续删除或转移商家不影响历史订单 */
+    private Long sellerId;
+
     private Long skuId;
 
     private String productName;
@@ -42,6 +45,9 @@ public class OrderItem implements Serializable {
     private String imageUrl;
 
     private BigDecimal unitPrice;
+
+    /** 下单时成本价快照，用于历史毛利统计 */
+    private BigDecimal costPrice;
 
     private Integer quantity;
 

@@ -10,10 +10,13 @@ import com.ecommerce.common.ResultCode;
 import com.ecommerce.common.RoleCode;
 import com.ecommerce.dto.PayDTO;
 import com.ecommerce.entity.Order;
+import com.ecommerce.entity.OrderItem;
 import com.ecommerce.entity.Payment;
 import com.ecommerce.exception.BusinessException;
+import com.ecommerce.mapper.OrderItemMapper;
 import com.ecommerce.mapper.OrderMapper;
 import com.ecommerce.mapper.PaymentMapper;
+import com.ecommerce.mapper.ProductMapper;
 import com.ecommerce.security.LoginUserUtil;
 import com.ecommerce.service.OperationLogService;
 import com.ecommerce.service.PaymentService;
@@ -48,13 +51,19 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentMapper paymentMapper;
     private final OrderMapper orderMapper;
+    private final OrderItemMapper orderItemMapper;
+    private final ProductMapper productMapper;
     private final OperationLogService operationLogService;
 
     public PaymentServiceImpl(PaymentMapper paymentMapper,
                               OrderMapper orderMapper,
+                              OrderItemMapper orderItemMapper,
+                              ProductMapper productMapper,
                               OperationLogService operationLogService) {
         this.paymentMapper = paymentMapper;
         this.orderMapper = orderMapper;
+        this.orderItemMapper = orderItemMapper;
+        this.productMapper = productMapper;
         this.operationLogService = operationLogService;
     }
 
@@ -71,6 +80,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
         if (!OrderStatus.PENDING_PAYMENT.name().equals(order.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "当前订单状态不允许支付");
+        }
+        if (order.getExpireAt() != null && order.getExpireAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR, "订单已超时，请重新下单");
         }
         if (order.getPayAmount().compareTo(dto.getAmount()) != 0) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR, "支付金额与订单应付金额不一致");
@@ -89,6 +101,7 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setUserId(userId);
         payment.setAmount(order.getPayAmount());
         payment.setCurrency(order.getCurrency());
+        payment.setType("PAY");
         payment.setMethod("MOCK");
         payment.setTradeNo("MOCK" + System.currentTimeMillis());
 
@@ -115,6 +128,13 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setStatus(PAYMENT_SUCCESS);
         payment.setPaidAt(LocalDateTime.now());
         paymentMapper.insert(payment);
+
+        // 支付成功才累计销量，避免未付款订单虚增
+        List<OrderItem> items = orderItemMapper.selectList(
+                new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
+        for (OrderItem item : items) {
+            productMapper.increaseSales(item.getProductId(), item.getQuantity());
+        }
         log.info("模拟支付成功：orderNo={}, amount={}", order.getOrderNo(), order.getPayAmount());
         operationLogService.record("PAYMENT", "模拟支付成功",
                 order.getOrderNo() + " | " + order.getPayAmount() + " " + order.getCurrency());
@@ -169,6 +189,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     private String generatePaymentNo() {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        return "PAY" + timestamp + String.format("%03d", ThreadLocalRandom.current().nextInt(1000));
+        return "PAY" + timestamp + String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
     }
 }

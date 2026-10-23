@@ -18,6 +18,8 @@ public class CartItemVO implements Serializable {
 
     private Long id;
     private Long productId;
+    private Long skuId;
+    private String specName;
     private String productName;
     private String productNameEn;
     private String imageUrl;
@@ -31,12 +33,15 @@ public class CartItemVO implements Serializable {
     private Boolean available;
     private String unavailableReason;
 
-    public static CartItemVO of(Long id, Long productId, String productName, String productNameEn,
+    public static CartItemVO of(Long id, Long productId, Long skuId, String specName,
+                                String productName, String productNameEn,
                                 String imageUrl, String skuCode, BigDecimal price, String currency,
                                 Integer stock, Integer quantity, Integer productStatus) {
         CartItemVO vo = new CartItemVO();
         vo.setId(id);
         vo.setProductId(productId);
+        vo.setSkuId(skuId);
+        vo.setSpecName(specName);
         vo.setProductName(productName);
         vo.setProductNameEn(productNameEn);
         vo.setImageUrl(imageUrl);

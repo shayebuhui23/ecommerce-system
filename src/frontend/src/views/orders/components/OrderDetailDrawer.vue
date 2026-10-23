@@ -46,9 +46,10 @@
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs text-slate-700">{{ item.productName }}</p>
                 <p class="mt-0.5 font-mono text-[10px] text-slate-400">{{ item.skuCode }}</p>
+                <p v-if="item.specName" class="mt-0.5 text-[10px] text-slate-400">{{ item.specName }}</p>
               </div>
               <div class="text-right">
-                <p class="font-mono text-xs text-slate-700">{{ money(item.unitPrice) }}</p>
+                <p class="font-mono text-xs text-slate-700">{{ moneyBy(item.currency, item.unitPrice) }}</p>
                 <p class="text-[10px] text-slate-400">× {{ item.quantity }}</p>
                 <button
                   v-if="canReview"
@@ -184,14 +185,7 @@
           >
             申请售后
           </button>
-          <button
-            v-if="canApplyRefund && order.status === 'COMPLETED'"
-            type="button"
-            class="flex-1 rounded-xl border border-amber-200 py-2.5 text-sm text-amber-600 transition-colors hover:bg-amber-50"
-            @click="openAfterSale('退货')"
-          >
-            申请退货
-          </button>
+
           <button
             v-if="showCancel"
             type="button"
@@ -217,7 +211,6 @@
           :title="afterSaleTitle"
           :preset-reason="afterSalePreset"
           @applied="handleApplied"
-          @received="handleReceived"
         />
         <ReviewDialog v-model="reviewVisible" :item="reviewItem" @reviewed="handleReviewed" />
         <ShipDialog v-model="shipVisible" :order="order" @shipped="handleShipped" />
@@ -340,7 +333,11 @@ const displayStatusText = computed(() => {
 })
 
 function money(amount) {
-  const symbol = order.value?.currency === 'USD' ? '$' : '¥'
+  return moneyBy(order.value?.currency, amount)
+}
+
+function moneyBy(currency, amount) {
+  const symbol = currency === 'USD' ? '$' : '¥'
   return `${symbol}${Number(amount || 0).toFixed(2)}`
 }
 
@@ -451,10 +448,6 @@ async function handleReturnSubmitted() {
   emit('updated')
 }
 
-async function handleReceived() {
-  await loadDetail()
-  emit('updated')
-}
 
 function openReview(item) {
   reviewItem.value = item

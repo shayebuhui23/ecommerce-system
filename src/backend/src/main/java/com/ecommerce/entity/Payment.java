@@ -36,6 +36,11 @@ public class Payment implements Serializable {
     private String currency;
 
     /** 支付方式，本项目固定为 MOCK */
+    /** PAY 支付 / REFUND 退款 */
+    private String type;
+
+    private Long refundOf;
+
     private String method;
 
     /** 1 成功，0 失败 */

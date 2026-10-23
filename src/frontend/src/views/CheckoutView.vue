@@ -60,6 +60,7 @@
               <div v-else class="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">无图</div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs text-slate-700">{{ item.productName }}</p>
+                <p v-if="item.specName" class="mt-0.5 text-[11px] text-slate-400">{{ item.specName }}</p>
                 <p class="mt-0.5 text-[11px] text-slate-400">{{ formatMoney(item.currency, item.price) }} × {{ item.quantity }}</p>
               </div>
               <p class="font-mono text-xs text-slate-700">{{ formatMoney(item.currency, item.subtotal) }}</p>
@@ -69,17 +70,25 @@
       </div>
 
       <section class="h-fit rounded-2xl border border-slate-200/70 bg-white p-5 lg:sticky lg:top-20">
-        <h3 class="text-sm text-slate-700">金额明细</h3>
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm text-slate-700">金额明细</h3>
+          <el-select v-model="currency" size="small" class="!w-24">
+            <el-option value="CNY" label="CNY" />
+            <el-option v-for="rate in rates" :key="rate.id" :value="rate.toCurrency" :label="rate.toCurrency" />
+          </el-select>
+        </div>
         <div class="mt-4 space-y-2 text-xs text-slate-500">
           <div class="flex justify-between">
             <span>商品金额</span>
-            <span class="font-mono text-slate-700">{{ formatMoney(currency, totalAmount) }}</span>
+            <span class="font-mono text-slate-700">{{ formatMoney(currency, displayTotal) }}</span>
           </div>
           <div class="flex justify-between">
             <span>运费</span>
-            <span class="font-mono text-slate-700">{{ freightAmount === 0 ? '包邮' : formatMoney(currency, freightAmount) }}</span>
+            <span class="font-mono text-slate-700">{{ baseFreight === 0 ? '包邮' : formatMoney(currency, displayFreight) }}</span>
           </div>
-          <p class="pt-1 text-[10px] text-slate-400">满 ¥500 包邮，未满收取 ¥20</p>
+          <p class="pt-1 text-[10px] text-slate-400">
+            基础币种 CNY 满 ¥500 包邮，未满收取 ¥20；展示金额按当前汇率换算
+          </p>
         </div>
 
         <div class="mt-4 flex items-end justify-between border-t border-slate-100 pt-4">
@@ -112,6 +121,8 @@ import { MapPin, ReceiptText } from 'lucide-vue-next'
 import { fetchCart } from '../api/cart'
 import { fetchAddressList } from '../api/address'
 import { createOrder } from '../api/order'
+import { fetchProductDetail } from '../api/product'
+import { fetchExchangeRates } from '../api/exchangeRate'
 import PayDialog from './orders/components/PayDialog.vue'
 
 const router = useRouter()
@@ -122,12 +133,20 @@ const addresses = ref([])
 const selectedAddressId = ref(null)
 const items = ref([])
 const currency = ref('CNY')
+const rates = ref([])
 const totalAmount = ref(0)
 const payVisible = ref(false)
 const payingOrder = ref(null)
 
-const freightAmount = computed(() => (totalAmount.value >= 500 ? 0 : 20))
-const payAmount = computed(() => Number(totalAmount.value) + freightAmount.value)
+const baseFreight = computed(() => (totalAmount.value >= 500 ? 0 : 20))
+const currencyRate = computed(() => {
+  if (currency.value === 'CNY') return 1
+  const item = rates.value.find((rate) => rate.toCurrency === currency.value)
+  return item ? Number(item.rate) : 1
+})
+const displayTotal = computed(() => Number((totalAmount.value * currencyRate.value).toFixed(2)))
+const displayFreight = computed(() => Number((baseFreight.value * currencyRate.value).toFixed(2)))
+const payAmount = computed(() => Number((displayTotal.value + displayFreight.value).toFixed(2)))
 
 function formatMoney(code, amount) {
   const symbol = code === 'USD' ? '$' : '¥'
@@ -140,34 +159,73 @@ function formatAddress(address) {
     .join(' · ')
 }
 
+const directProductId = Number(route.query.productId) || null
+const directSkuId = Number(route.query.skuId) || null
+const directQuantity = Math.max(1, Number(route.query.quantity) || 1)
+
 async function loadData() {
   loading.value = true
-  const [cartData, addressData] = await Promise.all([
-    fetchCart().catch((error) => {
-      console.error('加载购物车失败', error)
-      return null
-    }),
+  const [addressData, rateData] = await Promise.all([
     fetchAddressList().catch((error) => {
       console.error('加载地址失败', error)
       return []
+    }),
+    fetchExchangeRates().catch((error) => {
+      console.error('加载汇率失败', error)
+      return []
     })
   ])
-  loading.value = false
+  rates.value = (rateData || []).filter((rate) => rate.status === 1 && rate.fromCurrency === 'CNY')
 
-  if (cartData) {
-    const available = (cartData.items || []).filter((item) => item.available)
-    // 仅结算购物车中勾选的商品；直接访问结算页时默认全部可结算商品
-    const rawItems = typeof route.query.items === 'string' ? route.query.items : ''
-    const selectedIds = rawItems
-      .split(',')
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value > 0)
-    items.value = selectedIds.length
-      ? available.filter((item) => selectedIds.includes(item.id))
-      : available
-    currency.value = cartData.currency || 'CNY'
-    totalAmount.value = items.value.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+  if (directProductId) {
+    // 立即购买：直接读取商品，不写购物车
+    const product = await fetchProductDetail(directProductId).catch((error) => {
+      console.error('加载商品失败', error)
+      return null
+    })
+    if (product) {
+      const sku = directSkuId ? (product.skus || []).find((item) => item.id === directSkuId) : null
+      const unitPrice = Number(sku?.price ?? product.price)
+      items.value = [
+        {
+          id: 0,
+          productId: product.id,
+          skuId: sku?.id || null,
+          specName: sku?.specName || '',
+          productName: product.name,
+          productNameEn: product.nameEn,
+          imageUrl: product.imageUrl,
+          price: unitPrice,
+          currency: 'CNY',
+          quantity: directQuantity,
+          subtotal: unitPrice * directQuantity
+        }
+      ]
+      currency.value = 'CNY'
+      totalAmount.value = items.value[0].subtotal
+    }
+  } else {
+    const cartData = await fetchCart().catch((error) => {
+      console.error('加载购物车失败', error)
+      return null
+    })
+    if (cartData) {
+      const available = (cartData.items || []).filter((item) => item.available)
+      // 仅结算购物车中勾选的商品；直接访问结算页时默认全部可结算商品
+      const rawItems = typeof route.query.items === 'string' ? route.query.items : ''
+      const selectedIds = rawItems
+        .split(',')
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+      items.value = selectedIds.length
+        ? available.filter((item) => selectedIds.includes(item.id))
+        : available
+      currency.value = cartData.currency || 'CNY'
+      totalAmount.value = items.value.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+    }
   }
+
+  loading.value = false
   addresses.value = addressData || []
   const defaultAddress = addresses.value.find((item) => item.isDefault === 1)
   selectedAddressId.value = defaultAddress ? defaultAddress.id : addresses.value[0]?.id || null
@@ -176,11 +234,19 @@ async function loadData() {
 async function submit() {
   if (!selectedAddressId.value || !items.value.length) return
   submitting.value = true
-  const data = await createOrder({
+  const payload = {
     addressId: selectedAddressId.value,
-    cartItemIds: items.value.map((item) => item.id),
-    shippingMethod: 'EXPRESS'
-  })
+    shippingMethod: 'EXPRESS',
+    currency: currency.value
+  }
+  if (directProductId) {
+    payload.productId = directProductId
+    payload.quantity = directQuantity
+    if (directSkuId) payload.skuId = directSkuId
+  } else {
+    payload.cartItemIds = items.value.map((item) => item.id)
+  }
+  const data = await createOrder(payload)
     .then((result) => result)
     .catch((error) => {
       console.error('创建订单失败', error)

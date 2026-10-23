@@ -54,6 +54,7 @@
         <div class="min-w-[180px] flex-1">
           <p class="text-sm text-slate-800">{{ item.productName }}</p>
           <p class="mt-0.5 text-[11px] text-slate-400">{{ item.productNameEn }}</p>
+          <p v-if="item.specName" class="mt-0.5 text-[11px] text-slate-500">{{ item.specName }}</p>
           <p class="mt-2 font-mono text-sm text-brand-600">{{ formatMoney(item.currency, item.price) }}</p>
           <p v-if="!item.available" class="mt-1 text-[11px] text-rose-500">{{ item.unavailableReason }}</p>
         </div>
@@ -167,15 +168,26 @@ async function loadCart() {
   selectedIds.value = selectedIds.value.filter((id) => validIds.has(id))
 }
 
-async function handleQuantityChange(item) {
-  const ok = await updateCartQuantity(item.id, item.quantity)
-    .then(() => true)
-    .catch((error) => {
-      console.error('修改数量失败', error)
-      return false
-    })
-  loadCart()
-  if (ok) ElMessage.success('数量已更新')
+const quantityTimers = new Map()
+
+// 数量连续点击时合并请求，避免每点一次都发请求和弹提示
+function handleQuantityChange(item) {
+  const timer = quantityTimers.get(item.id)
+  if (timer) clearTimeout(timer)
+  quantityTimers.set(
+    item.id,
+    setTimeout(async () => {
+      quantityTimers.delete(item.id)
+      const ok = await updateCartQuantity(item.id, item.quantity)
+        .then(() => true)
+        .catch((error) => {
+          console.error('修改数量失败', error)
+          return false
+        })
+      loadCart()
+      if (ok) ElMessage.success('数量已更新')
+    }, 500)
+  )
 }
 
 async function removeItem(item) {

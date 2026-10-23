@@ -71,7 +71,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { applyAfterSale } from '../../../api/afterSale'
-import { receiveOrder } from '../../../api/shipment'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -79,7 +78,7 @@ const props = defineProps({
   title: { type: String, default: '申请售后' },
   presetReason: { type: String, default: '' }
 })
-const emit = defineEmits(['update:modelValue', 'applied', 'received'])
+const emit = defineEmits(['update:modelValue', 'applied'])
 
 const visible = computed({
   get: () => props.modelValue,
@@ -87,7 +86,6 @@ const visible = computed({
 })
 
 const submitting = ref(false)
-const receiptConfirmed = ref(false)
 const formRef = ref()
 const form = reactive({ type: 'REFUND_ONLY', reason: '', description: '' })
 
@@ -96,13 +94,8 @@ const typeOptions = computed(() => {
   if (status === 'PENDING_SHIPMENT') {
     return [{ value: 'REFUND_ONLY', label: '仅退款' }]
   }
-  if (status === 'COMPLETED') {
-    return [{ value: 'RETURN_REFUND', label: '退货退款' }]
-  }
-  return [
-    { value: 'REFUND_ONLY', label: '仅退款（未收到/拒收）' },
-    { value: 'RETURN_REFUND', label: '退货退款（已收到）' }
-  ]
+  // 已发货与已完成订单统一走退货退款，避免仅退款后不寄回商品
+  return [{ value: 'RETURN_REFUND', label: '退货退款' }]
 })
 
 const rules = {
@@ -118,28 +111,17 @@ async function submit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid || !props.order) return
 
-  // 未确认收货的订单需先确认收货，再按退货退款提交
-  if (props.order.status === 'SHIPPED' && !receiptConfirmed.value) {
-    const goReceive = await ElMessageBox.confirm(
-      '您还未确认收货，请先确认收货后再申请退货退款。是否现在确认收货？',
-      '请先确认收货',
-      { confirmButtonText: '确认收货', cancelButtonText: '取消', type: 'warning' }
+  // 已发货但未确认收货时，提醒买家退货退款需在收到商品后寄回
+  if (props.order.status === 'SHIPPED') {
+    const goOn = await ElMessageBox.confirm(
+      '该订单尚未确认收货。退货退款需在收到商品后寄回，是否继续提交申请？',
+      '请确认物流状态',
+      { confirmButtonText: '继续申请', cancelButtonText: '取消', type: 'warning' }
     )
       .then(() => true)
       .catch(() => false)
-    if (!goReceive) return
-
-    const received = await receiveOrder(props.order.id)
-      .then(() => true)
-      .catch((error) => {
-        console.error('确认收货失败', error)
-        return false
-      })
-    if (!received) return
-    receiptConfirmed.value = true
+    if (!goOn) return
     form.type = 'RETURN_REFUND'
-    ElMessage.success('已确认收货，请继续提交退货退款申请')
-    emit('received')
   }
 
   submitting.value = true
@@ -167,8 +149,7 @@ watch(
   () => props.modelValue,
   (opened) => {
     if (opened) {
-      receiptConfirmed.value = false
-      form.type = props.order?.status === 'COMPLETED' ? 'RETURN_REFUND' : 'REFUND_ONLY'
+      form.type = props.order?.status === 'PENDING_SHIPMENT' ? 'REFUND_ONLY' : 'RETURN_REFUND'
       form.reason = props.presetReason || ''
       form.description = ''
       formRef.value?.clearValidate()

@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8080
   servlet:
     encoding:
@@ -26,7 +26,7 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   global-config:
     banner: false
     db-config:
@@ -37,10 +37,10 @@ mybatis-plus:
 
 sa-token:
   token-name: Authorization
-  timeout: 2592000
+  timeout: 604800
   active-timeout: -1
   is-concurrent: true
-  is-share: false
+  is-share: true
   token-style: uuid
   is-log: false
 
@@ -51,5 +51,5 @@ ecommerce:
 
 logging:
   level:
-    com.ecommerce: debug
+    com.ecommerce: info
     com.baomidou.mybatisplus: info
