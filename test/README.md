@@ -1,4 +1,4 @@
-# 测试说明
+﻿# 测试说明
 
 本目录存放课程要求的**测试用例与测试报告**，与 `src/backend/src/test` 下的 Java 单元测试互补。
 
@@ -6,11 +6,14 @@
 
 ```
 test/
-├── test-cases/            功能测试用例（按阶段划分）
-│   ├── 阶段一-认证与权限.md
-│   └── 阶段二-商品与地址.md
+├── test-cases/            功能测试用例（按阶段划分，共 127 条）
+│   ├── 阶段一-认证与权限.md      17 条
+│   ├── 阶段二-商品与地址.md      31 条
+│   ├── 阶段三-购物车与订单.md    26 条
+│   ├── 阶段四-支付与履约.md      21 条
+│   └── 阶段五-售后与扩展.md      32 条
 └── api/
-    └── smoke.ps1          接口冒烟脚本
+    └── smoke.ps1          接口冒烟脚本，覆盖 40+ 项断言
 ```
 
 ## 测试分层
@@ -25,17 +28,20 @@ test/
 
 ### 1. 单元测试
 
-```powershell
+```bash
 cd src/backend
 mvn test
 ```
+
+测试会加载完整 Spring 上下文，执行前需保证 MySQL 已导入 `schema.sql`。
 
 ### 2. 接口冒烟测试
 
 前置条件：MySQL 已导入 `src/database/schema.sql` 与 `seed.sql`，后端已在 8080 端口启动。
 
+在仓库根目录执行。
+
 ```powershell
-cd d:/ecommerce-system
 powershell -ExecutionPolicy Bypass -File test/api/smoke.ps1
 ```
 
@@ -45,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File test/api/smoke.ps1
 powershell -ExecutionPolicy Bypass -File test/api/smoke.ps1 -BaseUrl http://127.0.0.1:8080 -Password 123456
 ```
 
-脚本共 43 项断言，覆盖以下行为：
+脚本覆盖以下行为（断言数量随用例扩展）：
 
 - 三角色登录与角色返回、错误密码、未登录、跨角色越权（管理员接口、统计接口、审计日志）
 - 客户与商家在商品可见性上的差异（下架商品对客户不可见）
