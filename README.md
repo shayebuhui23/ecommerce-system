@@ -1,6 +1,4 @@
-# 小型电商订单系统（跨境贸易场景扩展版）
-
-软件工程课程期末综合实践项目。已完成阶段一（工程骨架、数据库与三角色权限）和阶段二（商品分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）；购物车、订单、支付、物流与售后将在后续阶段接入。
+# 小型电商订单系统
 
 ## 技术栈
 
@@ -26,10 +24,7 @@ ecommerce-system/
 │   ├── backend/                Spring Boot 后端（Java 单元测试位于 src/backend/src/test）
 │   ├── frontend/               Vue 3 前端
 │   └── database/               schema.sql 建表脚本、seed.sql 演示数据
-├── docs/                       需求、设计文档、会议记录与验证截图
-│   ├── 初始规划.md
-│   ├── plan.md
-│   ├── meetings/               会议记录
+├── docs/
 │   └── screenshots/            功能验证截图
 ├── test/                       测试用例与测试报告
 │   ├── test-cases/             功能测试用例
@@ -217,18 +212,7 @@ HTTP 状态码与业务码分离：未登录返回 401、越权返回 403、参�
 | 金额计算 | 商品金额与运费先按 CNY 计算并判断是否包邮（满 500 免运费），再按汇率换算为订单币种 |
 | 统计口径 | 统计金额使用订单的 `base_amount`（下单时折算的 CNY 金额），不同币种不会直接相加 |
 
-## 八、开发进度
-
-- [x] 阶段一：项目初始化（工程、数据库、统一响应、登录与角色权限）
-- [x] 阶段二：商品与客户功能（分类、商品与 SKU、商品浏览筛选、收货地址、个人资料）
-- [x] 阶段三：购物车与订单（购物车、下单、库存预扣、订单查询与取消）
-- [x] 阶段四：支付与履约（模拟支付、发货、物流跟踪、确认收货）
-- [x] 阶段五：售后与扩展功能（退款审核、商品评价、币种汇率、经营统计、操作审计）
-- [x] 阶段六：测试、修复与交付（回归 43 项通过、部署说明、代码统计与交付清单）
-
-详细计划见 `docs/plan.md`，需求见 `docs/初始规划.md`。
-
-## 九、常用命令
+## 八、常用命令
 
 ```powershell
 # 后端编译
@@ -241,9 +225,9 @@ cd src/backend; mvn test
 cd src/frontend; npm run build
 ```
 
-## 十、验证截图
+## 九、验证截图
 
-骨架阶段已在浏览器中完成登录、角色菜单、越权拦截与退出流程验证，截图见 `docs/screenshots/`：
+关键界面截图见 `docs/screenshots/`：
 
 | 文件 | 内容 |
 | ---- | ---- |
@@ -278,41 +262,13 @@ cd src/frontend; npm run build
 - 普通客户访问 `/api/user/page` 返回 403。
 - 管理员分页查询返回 3 个演示账号。
 
-## 十一、代码托管
-
-课程要求源码托管在**头歌平台创建的项目仓库**，仓库地址需填写在报告 4.4 节，评审期间必须可访问。
-
-| 平台 | 地址 | 状态 |
-| ---- | ---- | ---- |
-| GitHub（开发主仓库） | https://github.com/shayebuhui23/ecommerce-system | 已推送全部提交 |
-| 头歌（课程要求仓库） | 待补充 | 期末提交前需推送并填写到报告 4.4 节 |
-
-推送命令：
-
-```powershell
-# GitHub（开发期主仓库）
-git push -u origin main
-
-# 头歌（第二个远端，按课程要求补推）
-git remote add educoder <头歌仓库地址>
-git push educoder main
-```
-
-说明：
-
-- 头歌的 Git 地址形式为 `https://git.educoder.net/<用户名>/<项目名>.git`；`code.educoder.net/<用户名>/<项目名>` 只是网页地址，不能用于推送。
-- `node_modules/`、`dist/`、`target/`、`application-local.yml` 已在 `.gitignore` 中排除，仓库中不含依赖、构建产物与数据库密码。
-- 后续每次功能完成后提交并推送，保持提交记录连续、均衡（过程考核依据）。
-- 若远端仓库已存在初始 README 等文件，推送前先 `git pull --rebase origin main --allow-unrelated-histories` 合并。
-
-## 十二、测试用例与报告
+## 十、测试用例与报告
 
 | 材料 | 位置 | 说明 |
 | ---- | ---- | ---- |
 | 功能测试用例 | `test/test-cases/` | 5 个阶段共 127 条用例，含缺陷跟踪 |
 | 接口回归脚本 | `test/api/smoke.ps1` | 43 项断言，覆盖认证、越权、购物车、下单、支付、发货、收货、评价、售后、统计 |
 | Java 单元测试 | `src/backend/src/test/` | `mvn test` 执行，3 个用例 |
-| 代码统计与交付清单 | `docs/代码统计与交付清单.md` | 分层规模、接口数量、测试统计、交付物清单 |
 | 验证截图 | `docs/screenshots/` | 23 张，覆盖各阶段关键界面 |
 
 执行方式：
@@ -328,7 +284,7 @@ powershell -ExecutionPolicy Bypass -File test/api/smoke.ps1
 
 最近一次回归结果：`mvn test` 3/3 通过，`smoke.ps1` 43/43 通过，前端构建成功，浏览器端到端链路通过。
 
-## 十三、常见问题
+## 十一、常见问题
 
 **Q1：启动后端报 `Access denied for user 'root'`**
 数据库密码没有注入。检查 `src/backend/src/main/resources/application-local.yml` 是否存在且密码正确，或启动前设置环境变量：
